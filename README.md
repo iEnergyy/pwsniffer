@@ -1,4 +1,6 @@
-# Playwright Failure Analysis MVP
+# PWSniffer
+
+**Playwright Sniffer** - AI-powered test failure analysis tool
 
 A personal, stateless MVP that uses Vercel AI SDK multi-agent reasoning to analyze a single Playwright test run and explain:
 
@@ -145,11 +147,19 @@ Correlate what the test _expected_ with what the browser _actually showed_.
 
 ```json
 {
-  "ui_state": "element_missing",
-  "page_state": "loaded",
-  "blocking_factors": ["cookie_banner"]
+  "uiState": "element missing",
+  "pageState": "loaded",
+  "blockingFactors": ["cookie_banner", "modal overlay"]
 }
 ```
+
+**Implementation**
+
+- Extracts DOM snapshots from Playwright traces at failure point
+- Analyzes screenshots using GPT-4o vision API
+- Detects page lifecycle events (load, navigation, redirects)
+- Identifies blocking elements (modals, banners, overlays, spinners)
+- Correlates test expectations with actual UI state
 
 ---
 
@@ -207,15 +217,15 @@ Produce a clear, human-readable decision and next step.
 ```text
 Playwright artifacts
         ↓
-Report Decomposition Agent
+Report Decomposition Agent ✅
         ↓
-Failure Classification Agent
+Failure Classification Agent ✅
         ↓
-Artifact Correlation Agent
+Artifact Correlation Agent ✅
         ↓
-Selector Heuristics Agent (conditional)
+Selector Heuristics Agent (conditional) ⏳
         ↓
-Action Synthesis Agent
+Action Synthesis Agent ⏳
 ```
 
 Agents are **conditionally executed** — not all agents run for every failure.
@@ -252,6 +262,7 @@ tools/
   readTrace.ts
   extractDOM.ts
   analyzeScreenshot.ts
+  detectPageLifecycle.ts
 
 pipeline/
   runAnalysis.ts
@@ -392,29 +403,32 @@ You trust this agent more than manually reading the report.
 
 ### PHASE 3 — Artifact Correlation Agent (Trace-First) (3–4 days)
 
-- [ ] **Goal:** Understand UI reality vs test expectations.
+- [x] **Goal:** Understand UI reality vs test expectations.
 
 **Build**
 
-- [ ] Agent: `ArtifactCorrelator`
-- [ ] Tools:
-  - [ ] Trace DOM snapshot reader
-  - [ ] Screenshot inspection
-  - [ ] Page lifecycle events
+- [x] Agent: `ArtifactCorrelator`
+- [x] Tools:
+  - [x] Trace DOM snapshot reader (`tools/readTrace.ts`)
+  - [x] DOM extraction and analysis (`tools/extractDOM.ts`)
+  - [x] Screenshot inspection (`tools/analyzeScreenshot.ts`)
+  - [x] Page lifecycle events (`tools/detectPageLifecycle.ts`)
 
 **What it answers**
 
-- [ ] Was the page loaded?
-- [ ] Was the element visible?
-- [ ] Was something blocking the UI?
-- [ ] Did a redirect happen?
+- [x] Was the page loaded?
+- [x] Was the element visible?
+- [x] Was something blocking the UI?
+- [x] Did a redirect happen?
 
 **Exit criteria ✅**
 
-- You no longer open trace viewer by default.
-- You only open it when the agent tells you to.
+- [x] You no longer open trace viewer by default.
+- [x] You only open it when the agent tells you to.
+- [x] Screenshots are displayed in the analysis UI
+- [x] UI state analysis is shown with page state, blocking factors, and visual indicators
 
-**Status:** 🚧 **IN PROGRESS** / ⏳ **PENDING**
+**Status:** ✅ **COMPLETE**
 
 ---
 
@@ -480,7 +494,7 @@ You follow the recommendation without second-guessing.
 
 - [ ] CLI command:
   ```bash
-  npx playwright-analyze ./run-artifacts
+  npx pwsniffer ./run-artifacts
   ```
 - [ ] CLI output
   - [ ] Human-readable summary

@@ -15,7 +15,7 @@ import {
   LoaderIcon,
   PlayIcon,
 } from 'lucide-react';
-import type { TestFailureFacts, FailureCategory } from '@/types/schemas';
+import type { TestFailureFacts, FailureCategory, ArtifactSignals } from '@/types/schemas';
 
 function formatFileSize(bytes: number): string {
   if (bytes === 0) return '0 Bytes';
@@ -69,6 +69,38 @@ function getConfidenceColor(confidence: number): string {
   return 'text-orange-600';
 }
 
+function getPageStateBadgeVariant(pageState: string): 'default' | 'destructive' | 'secondary' | 'outline' {
+  switch (pageState.toLowerCase()) {
+    case 'loaded':
+      return 'default';
+    case 'loading':
+      return 'outline';
+    case 'error':
+    case 'failed':
+      return 'destructive';
+    case 'timeout':
+      return 'outline';
+    default:
+      return 'secondary';
+  }
+}
+
+function getPageStateLabel(pageState: string): string {
+  switch (pageState.toLowerCase()) {
+    case 'loaded':
+      return 'Loaded';
+    case 'loading':
+      return 'Loading';
+    case 'error':
+    case 'failed':
+      return 'Error';
+    case 'timeout':
+      return 'Timeout';
+    default:
+      return 'Unknown';
+  }
+}
+
 export default function Page() {
   // Analysis state
   const [zipFile, setZipFile] = useState<File | null>(null);
@@ -83,6 +115,8 @@ export default function Page() {
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisResults, setAnalysisResults] = useState<TestFailureFacts[] | null>(null);
   const [failureCategories, setFailureCategories] = useState<FailureCategory[] | null>(null);
+  const [artifactSignals, setArtifactSignals] = useState<Array<ArtifactSignals | null> | null>(null);
+  const [screenshotUrls, setScreenshotUrls] = useState<string[]>([]);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
 
   const handleParse = async () => {
@@ -155,13 +189,17 @@ export default function Page() {
     setAnalysisError(null);
     setAnalysisResults(null);
     setFailureCategories(null);
+    setScreenshotUrls([]);
 
     try {
       const formData = new FormData();
+      let screenshotsToProcess: File[] = [];
 
       if (!useAdvancedMode && zipFile) {
         // Primary method: Upload ZIP file
         formData.append('zip', zipFile);
+        // Note: Screenshot extraction from ZIP happens on server side
+        // We'll get screenshot URLs from the API response if available
       } else {
         // Advanced method: Individual files
         formData.append('report', reportFile!);
@@ -169,6 +207,7 @@ export default function Page() {
         
         screenshotFiles.forEach(file => {
           formData.append('screenshots[]', file);
+          screenshotsToProcess.push(file);
         });
         
         if (videoFile) {
@@ -178,6 +217,19 @@ export default function Page() {
         if (contextText.trim()) {
           formData.append('context', contextText);
         }
+      }
+
+      // For individual file uploads, convert screenshots to data URLs for immediate display
+      // For ZIP files, screenshots will come from the API response
+      if (screenshotsToProcess.length > 0) {
+        const urls: string[] = [];
+        for (const screenshot of screenshotsToProcess) {
+          const arrayBuffer = await screenshot.arrayBuffer();
+          const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+          const mimeType = screenshot.type || 'image/png';
+          urls.push(`data:${mimeType};base64,${base64}`);
+        }
+        setScreenshotUrls(urls);
       }
 
       const response = await fetch('/api/analyze', {
@@ -193,6 +245,12 @@ export default function Page() {
 
       setAnalysisResults(data.results.failureFacts);
       setFailureCategories(data.results.failureCategories || null);
+      setArtifactSignals(data.results.artifactSignals || null);
+      
+      // Update screenshot URLs from API response (for ZIP files)
+      if (data.results.screenshotUrls && data.results.screenshotUrls.length > 0) {
+        setScreenshotUrls(data.results.screenshotUrls);
+      }
     } catch (error) {
       setAnalysisError(error instanceof Error ? error.message : 'Unknown error occurred');
     } finally {
@@ -600,6 +658,7 @@ export default function Page() {
                   ) : (
                     analysisResults.map((failure, index) => {
                       const category = failureCategories?.[index];
+                      const signals = artifactSignals?.[index];
                       return (
                         <Card key={index}>
                           <CardHeader>
@@ -660,6 +719,62 @@ export default function Page() {
                                   </pre>
                                 </CardContent>
                               </Card>
+                            </div>
+                          )}
+                          
+                          {/* Screenshot Display */}
+                          {screenshotUrls.length > 0 && (
+                            <div className="mt-4 pt-4 border-t">
+                              <h4 className="text-sm font-semibold mb-3">Screenshots</h4>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                {screenshotUrls.map((url, imgIndex) => (
+                                  <div key={imgIndex} className="relative">
+                                    <img
+                                      src={url}
+                                      alt={`Screenshot ${imgIndex + 1}`}
+                                      className="w-full h-auto rounded border border-border max-h-96 object-contain bg-muted"
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Artifact Signals Section */}
+                          {signals && (
+                            <div className="mt-4 pt-4 border-t">
+                              <h4 className="text-sm font-semibold mb-3">UI State Analysis</h4>
+                              <div className="space-y-3">
+                                <div>
+                                  <span className="text-sm font-medium">Page State: </span>
+                                  <Badge variant={getPageStateBadgeVariant(signals.pageState)} className="ml-2">
+                                    {getPageStateLabel(signals.pageState)}
+                                  </Badge>
+                                </div>
+                                <div>
+                                  <span className="text-sm font-medium">UI State: </span>
+                                  <span className="text-sm text-muted-foreground ml-2">{signals.uiState}</span>
+                                </div>
+                                {signals.blockingFactors && signals.blockingFactors.length > 0 && (
+                                  <div>
+                                    <span className="text-sm font-medium">Blocking Factors: </span>
+                                    <ul className="list-disc list-inside mt-1 space-y-1">
+                                      {signals.blockingFactors.map((factor, factorIndex) => (
+                                        <li key={factorIndex} className="text-sm text-muted-foreground">
+                                          {factor}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                          {signals === null && artifactSignals !== null && (
+                            <div className="mt-4 pt-4 border-t">
+                              <p className="text-xs text-muted-foreground">
+                                Artifact correlation unavailable (trace.zip required)
+                              </p>
                             </div>
                           )}
                           </CardContent>

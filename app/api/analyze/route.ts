@@ -101,11 +101,28 @@ export async function POST(req: NextRequest) {
     // Run analysis pipeline
     const results = await runAnalysis(artifacts);
 
+    // Convert screenshots to data URLs for client display
+    const screenshotUrls: string[] = [];
+    if (artifacts.screenshots && artifacts.screenshots.length > 0) {
+      for (const screenshot of artifacts.screenshots) {
+        try {
+          const arrayBuffer = await screenshot.arrayBuffer();
+          const base64 = Buffer.from(arrayBuffer).toString('base64');
+          const mimeType = screenshot.type || 'image/png';
+          screenshotUrls.push(`data:${mimeType};base64,${base64}`);
+        } catch (error) {
+          console.warn('Failed to convert screenshot to base64:', error);
+        }
+      }
+    }
+
     return NextResponse.json({
       success: true,
       results: {
         failureFacts: results.failureFacts,
         failureCategories: results.failureCategories,
+        artifactSignals: results.artifactSignals,
+        screenshotUrls,
       },
     });
   } catch (error) {

@@ -1,17 +1,19 @@
 /**
  * Pipeline orchestration for Playwright failure analysis
  * 
- * This is a stub for now. In future phases, this will orchestrate
- * multiple agents in sequence.
+ * Orchestrates multiple agents in sequence:
+ * - Phase 1: Report Decomposition
+ * - Phase 2: Failure Classification
+ * - Phase 3: Artifact Correlation
  */
 
-import type { PlaywrightArtifacts, FailureCategory } from '@/types/schemas';
+import type { PlaywrightArtifacts, FailureCategory, ArtifactSignals } from '@/types/schemas';
 import { decomposeReport, type ReportDecomposerInput } from '@/agents/reportDecomposer';
 import { classifyFailures } from '@/agents/failureClassifier';
+import { correlateArtifacts } from '@/agents/artifactCorrelator';
 
 /**
  * Run the complete analysis pipeline
- * Currently runs Phase 1 (Report Decomposition) and Phase 2 (Failure Classification)
  * 
  * @param artifacts - Playwright artifacts from a single run
  * @returns Analysis results
@@ -34,15 +36,33 @@ export async function runAnalysis(artifacts: PlaywrightArtifacts) {
     ? await classifyFailures(failureFacts)
     : [];
 
-  // TODO: Phase 3 - Artifact Correlation Agent
+  // Phase 3: Artifact Correlation (conditional - requires trace.zip)
+  const artifactSignals: Array<ArtifactSignals | null> = [];
+  
+  if (artifacts.traceZip && failureFacts.length > 0) {
+    // Correlate artifacts for each failure
+    const correlations = await Promise.all(
+      failureFacts.map(facts => 
+        correlateArtifacts({
+          failureFacts: facts,
+          artifacts,
+        })
+      )
+    );
+    artifactSignals.push(...correlations);
+  } else {
+    // No trace available, return null for each failure
+    artifactSignals.push(...failureFacts.map(() => null));
+  }
+
   // TODO: Phase 4 - Selector Heuristics Agent
   // TODO: Phase 5 - Action Synthesis Agent
 
   return {
     failureFacts,
     failureCategories,
+    artifactSignals,
     // Future phases will add:
-    // artifactSignals: ...,
     // selectorAnalysis: ...,
     // diagnosis: ...,
   };

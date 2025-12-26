@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
 
     // Check if a ZIP file was uploaded (primary method)
     const zipFile = formData.get('zip') as File | null;
-    
+
     let artifacts: PlaywrightArtifacts;
 
     if (zipFile && isZipFile(zipFile)) {
@@ -38,19 +38,19 @@ export async function POST(req: NextRequest) {
       const screenshotFiles = extracted.screenshots?.map(screenshot => {
         // Create File from Buffer - convert Buffer to Uint8Array for compatibility
         const uint8Array = new Uint8Array(screenshot.data);
-        const file = new File([uint8Array], screenshot.name, { 
-          type: screenshot.type 
+        const file = new File([uint8Array], screenshot.name, {
+          type: screenshot.type
         });
         return file;
       });
 
-      const videoFile = extracted.video 
+      const videoFile = extracted.video
         ? (() => {
-            const uint8Array = new Uint8Array(extracted.video.data);
-            return new File([uint8Array], extracted.video.name, { 
-              type: extracted.video.type 
-            });
-          })()
+          const uint8Array = new Uint8Array(extracted.video.data);
+          return new File([uint8Array], extracted.video.name, {
+            type: extracted.video.type
+          });
+        })()
         : undefined;
 
       artifacts = {
@@ -109,7 +109,7 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     console.error('Analysis error:', error);
-    
+
     return NextResponse.json(
       {
         error: 'Failed to analyze Playwright artifacts',

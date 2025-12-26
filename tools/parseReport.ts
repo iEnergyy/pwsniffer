@@ -141,8 +141,12 @@ function extractFailureFacts(
   // Determine the failed step name
   const failedStepName = failingStep?.title || 'Unknown step';
 
+  // In Playwright reports, the test name is typically on the spec, not the test object
+  // Fallback to test.title if spec.title is not available
+  const testName = spec.title || test.title || 'Unknown test';
+
   return {
-    testName: test.title || 'Unknown test',
+    testName,
     file: location.file || spec.file || 'Unknown file',
     failedStep: failedStepName,
     error: errorMessage,

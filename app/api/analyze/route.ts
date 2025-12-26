@@ -105,6 +105,7 @@ export async function POST(req: NextRequest) {
       success: true,
       results: {
         failureFacts: results.failureFacts,
+        failureCategories: results.failureCategories,
       },
     });
   } catch (error) {

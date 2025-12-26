@@ -5,12 +5,13 @@
  * multiple agents in sequence.
  */
 
-import type { PlaywrightArtifacts } from '@/types/schemas';
+import type { PlaywrightArtifacts, FailureCategory } from '@/types/schemas';
 import { decomposeReport, type ReportDecomposerInput } from '@/agents/reportDecomposer';
+import { classifyFailures } from '@/agents/failureClassifier';
 
 /**
  * Run the complete analysis pipeline
- * Currently only runs Phase 1 (Report Decomposition)
+ * Currently runs Phase 1 (Report Decomposition) and Phase 2 (Failure Classification)
  * 
  * @param artifacts - Playwright artifacts from a single run
  * @returns Analysis results
@@ -28,15 +29,19 @@ export async function runAnalysis(artifacts: PlaywrightArtifacts) {
 
   const failureFacts = await decomposeReport(decompositionInput);
 
-  // TODO: Phase 2 - Failure Classification Agent
+  // Phase 2: Failure Classification
+  const failureCategories: FailureCategory[] = failureFacts.length > 0
+    ? await classifyFailures(failureFacts)
+    : [];
+
   // TODO: Phase 3 - Artifact Correlation Agent
   // TODO: Phase 4 - Selector Heuristics Agent
   // TODO: Phase 5 - Action Synthesis Agent
 
   return {
     failureFacts,
+    failureCategories,
     // Future phases will add:
-    // failureCategory: ...,
     // artifactSignals: ...,
     // selectorAnalysis: ...,
     // diagnosis: ...,

@@ -15,7 +15,7 @@ import {
   LoaderIcon,
   PlayIcon,
 } from 'lucide-react';
-import type { TestFailureFacts } from '@/types/schemas';
+import type { TestFailureFacts, FailureCategory } from '@/types/schemas';
 
 function formatFileSize(bytes: number): string {
   if (bytes === 0) return '0 Bytes';
@@ -23,6 +23,50 @@ function formatFileSize(bytes: number): string {
   const sizes = ['Bytes', 'KB', 'MB', 'GB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+}
+
+function getCategoryBadgeVariant(category: FailureCategory['category']): 'default' | 'destructive' | 'secondary' | 'outline' {
+  switch (category) {
+    case 'selector_not_found':
+      return 'destructive';
+    case 'timeout':
+      return 'outline';
+    case 'assertion_failed':
+      return 'secondary';
+    case 'navigation_error':
+      return 'destructive';
+    case 'auth_error':
+      return 'outline';
+    case 'unknown':
+      return 'secondary';
+    default:
+      return 'secondary';
+  }
+}
+
+function getCategoryLabel(category: FailureCategory['category']): string {
+  switch (category) {
+    case 'selector_not_found':
+      return 'Selector Not Found';
+    case 'timeout':
+      return 'Timeout';
+    case 'assertion_failed':
+      return 'Assertion Failed';
+    case 'navigation_error':
+      return 'Navigation Error';
+    case 'auth_error':
+      return 'Auth Error';
+    case 'unknown':
+      return 'Unknown';
+    default:
+      return 'Unknown';
+  }
+}
+
+function getConfidenceColor(confidence: number): string {
+  if (confidence >= 0.8) return 'text-green-600';
+  if (confidence >= 0.5) return 'text-yellow-600';
+  return 'text-orange-600';
 }
 
 export default function Page() {
@@ -38,6 +82,7 @@ export default function Page() {
   const [parsedInfo, setParsedInfo] = useState<any>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisResults, setAnalysisResults] = useState<TestFailureFacts[] | null>(null);
+  const [failureCategories, setFailureCategories] = useState<FailureCategory[] | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
 
   const handleParse = async () => {
@@ -109,6 +154,7 @@ export default function Page() {
     setAnalyzing(true);
     setAnalysisError(null);
     setAnalysisResults(null);
+    setFailureCategories(null);
 
     try {
       const formData = new FormData();
@@ -146,6 +192,7 @@ export default function Page() {
       }
 
       setAnalysisResults(data.results.failureFacts);
+      setFailureCategories(data.results.failureCategories || null);
     } catch (error) {
       setAnalysisError(error instanceof Error ? error.message : 'Unknown error occurred');
     } finally {
@@ -500,6 +547,7 @@ export default function Page() {
                         onClick={() => {
                           setParsedInfo(null);
                           setAnalysisResults(null);
+                          setFailureCategories(null);
                         }}
                         className="flex-1"
                       >
@@ -550,24 +598,43 @@ export default function Page() {
                       </CardContent>
                     </Card>
                   ) : (
-                    analysisResults.map((failure, index) => (
-                      <Card key={index}>
-                        <CardHeader>
-                          <CardTitle className="text-base">{failure.testName}</CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-2">
-                          <div>
-                            <span className="text-sm font-medium">File: </span>
-                            <span className="text-sm">{failure.file}</span>
-                          </div>
-                          <div>
-                            <span className="text-sm font-medium">Failed Step: </span>
-                            <span className="text-sm">{failure.failedStep}</span>
-                          </div>
-                          <div>
-                            <span className="text-sm font-medium">Error: </span>
-                            <span className="text-sm text-destructive">{failure.error}</span>
-                          </div>
+                    analysisResults.map((failure, index) => {
+                      const category = failureCategories?.[index];
+                      return (
+                        <Card key={index}>
+                          <CardHeader>
+                            <div className="flex items-center justify-between">
+                              <CardTitle className="text-base">{failure.testName}</CardTitle>
+                              {category && (
+                                <div className="flex items-center gap-2">
+                                  <Badge variant={getCategoryBadgeVariant(category.category)}>
+                                    {getCategoryLabel(category.category)}
+                                  </Badge>
+                                  <span className={`text-xs ${getConfidenceColor(category.confidence)}`}>
+                                    {(category.confidence * 100).toFixed(0)}%
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                            {category && (
+                              <p className="text-xs text-muted-foreground mt-2">
+                                {category.reasoning}
+                              </p>
+                            )}
+                          </CardHeader>
+                          <CardContent className="space-y-2">
+                            <div>
+                              <span className="text-sm font-medium">File: </span>
+                              <span className="text-sm">{failure.file}</span>
+                            </div>
+                            <div>
+                              <span className="text-sm font-medium">Failed Step: </span>
+                              <span className="text-sm">{failure.failedStep}</span>
+                            </div>
+                            <div>
+                              <span className="text-sm font-medium">Error: </span>
+                              <span className="text-sm text-destructive">{failure.error}</span>
+                            </div>
                           {failure.timeout && (
                             <div>
                               <span className="text-sm font-medium">Timeout: </span>
@@ -595,9 +662,10 @@ export default function Page() {
                               </Card>
                             </div>
                           )}
-                        </CardContent>
-                      </Card>
-                    ))
+                          </CardContent>
+                        </Card>
+                      );
+                    })
                   )}
                 </div>
               )}

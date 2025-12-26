@@ -260,8 +260,8 @@ types/
   schemas.ts
 
 examples/
-  sample-report.json
-  context.md
+  playwright-report.json
+  error-context.md
 
 README.md
 ```
@@ -292,19 +292,19 @@ README.md
 
 ### PHASE 0 — Foundations (1–2 days)
 
-**Goal:** Make the problem concrete and reproducible.
+- [x] **Goal:** Make the problem concrete and reproducible.
 
 **Deliverables**
 
-- Decide one canonical input format
-  - `report.json` = required
-  - `trace.zip` = required
-  - `screenshots` / `video` = optional
-  - `context.md` = optional
-- Define canonical intermediate schema
-  - `TestFailureFacts`
-  - `ArtifactSignals`
-  - `FinalDiagnosis`
+- [x] Decide one canonical input format
+  - [x] `report.json` = required
+  - [x] `trace.zip` = required
+  - [x] `screenshots` / `video` = optional
+  - [x] `context.md` = optional
+- [x] Define canonical intermediate schema
+  - [x] `TestFailureFacts`
+  - [x] `ArtifactSignals`
+  - [x] `FinalDiagnosis`
 
 **Why this phase matters**
 
@@ -316,28 +316,30 @@ You can point the system at a folder and say:
 
 > "This is ONE Playwright run."
 
+**Status:** ✅ **COMPLETE**
+
 ---
 
 ### PHASE 1 — Report Decomposition Agent (Core) (2–3 days)
 
-**Goal:** Extract reliable facts from Playwright output.
+- [x] **Goal:** Extract reliable facts from Playwright output.
 
 **Build**
 
-- Agent: `ReportDecomposer`
-- Tools:
-  - JSON parser
-  - Stack trace extractor
-  - Step failure locator
+- [x] Agent: `ReportDecomposer`
+- [x] Tools:
+  - [x] JSON parser
+  - [x] Stack trace extractor
+  - [x] Step failure locator
 
 **What it must do perfectly**
 
 Identify:
 
-- Failed test(s)
-- Exact failing step
-- Error + timeout
-- File + line number
+- [x] Failed test(s)
+- [x] Exact failing step
+- [x] Error + timeout
+- [x] File + line number
 
 **Output**
 
@@ -349,84 +351,92 @@ You trust this agent more than manually reading the report.
 
 ⚠️ **Do NOT add reasoning here.**
 
+**Status:** ✅ **COMPLETE**
+
 ---
 
 ### PHASE 2 — Failure Classification Agent (2 days)
 
-**Goal:** Name the failure type confidently using only runtime signals.
+- [x] **Goal:** Name the failure type confidently using only runtime signals.
 
 **Build**
 
-- Agent: `FailureClassifier`
-- Input: `TestFailureFacts`
-- Output: `FailureCategory`
+- [x] Agent: `FailureClassifier`
+- [x] Input: `TestFailureFacts`
+- [x] Output: `FailureCategory`
 
 **Categories (start small)**
 
-- `selector_not_found`
-- `timeout`
-- `assertion_failed`
-- `navigation_error`
-- `auth_error`
-- `unknown`
+- [x] `selector_not_found`
+- [x] `timeout`
+- [x] `assertion_failed`
+- [x] `navigation_error`
+- [x] `auth_error`
+- [x] `unknown`
 
 **Rules first, LLM second**
 
-- Use pattern matching before LLM reasoning
-- LLM only explains ambiguous cases
+- [x] Use pattern matching before LLM reasoning
+- [x] LLM only explains ambiguous cases
+- [x] Confidence scoring
+- [x] UI display with badges and reasoning
 
 **Exit criteria ✅**
 
 - You stop saying "wtf happened?"
 - You start saying "ah, it's that kind of failure."
 
+**Status:** ✅ **COMPLETE**
+
 ---
 
 ### PHASE 3 — Artifact Correlation Agent (Trace-First) (3–4 days)
 
-**Goal:** Understand UI reality vs test expectations.
+- [ ] **Goal:** Understand UI reality vs test expectations.
 
 **Build**
 
-- Agent: `ArtifactCorrelator`
-- Tools:
-  - Trace DOM snapshot reader
-  - Screenshot inspection
-  - Page lifecycle events
+- [ ] Agent: `ArtifactCorrelator`
+- [ ] Tools:
+  - [ ] Trace DOM snapshot reader
+  - [ ] Screenshot inspection
+  - [ ] Page lifecycle events
 
 **What it answers**
 
-- Was the page loaded?
-- Was the element visible?
-- Was something blocking the UI?
-- Did a redirect happen?
+- [ ] Was the page loaded?
+- [ ] Was the element visible?
+- [ ] Was something blocking the UI?
+- [ ] Did a redirect happen?
 
 **Exit criteria ✅**
 
 - You no longer open trace viewer by default.
 - You only open it when the agent tells you to.
 
+**Status:** 🚧 **IN PROGRESS** / ⏳ **PENDING**
+
 ---
 
 ### PHASE 4 — Selector Heuristics Agent (Stateless Intelligence) (3 days)
 
-**Goal:** Solve the #1 Playwright pain without history.
+- [ ] **Goal:** Solve the #1 Playwright pain without history.
 
 **Build**
 
-- Agent: `SelectorHeuristics`
-- Input:
-  - Failing selector
-  - DOM snapshot
-- Output:
-  - Selector quality score
-  - Suggested alternative
+- [ ] Agent: `SelectorHeuristics`
+- [ ] Input:
+  - [ ] Failing selector
+  - [ ] DOM snapshot
+- [ ] Output:
+  - [ ] Selector quality score
+  - [ ] Suggested alternative
 
 **Heuristics priority**
 
-- Semantic selectors > CSS
-- Role/name > text
-- Stable attributes > deep nesting
+- [ ] Semantic selectors > CSS
+- [ ] Role/name > text
+- [ ] Stable attributes > deep nesting
 
 **Exit criteria ✅**
 
@@ -434,44 +444,48 @@ You copy the suggested selector at least once and it works.
 
 > This is a huge win moment.
 
+**Status:** ⏳ **PENDING**
+
 ---
 
 ### PHASE 5 — Action Synthesis Agent (Decision Layer) (2 days)
 
-**Goal:** Turn signals into clear next steps.
+- [ ] **Goal:** Turn signals into clear next steps.
 
 **Build**
 
-- Agent: `ActionSynthesizer`
-- Inputs:
-  - Failure category
-  - UI signals
-  - Selector analysis
-- Outputs
-  - Verdict: `test_issue` / `app_issue` / `unclear`
-  - Action: `retry` / `fix selector` / `increase timeout` / `investigate app`
-  - Urgency level
+- [ ] Agent: `ActionSynthesizer`
+- [ ] Inputs:
+  - [ ] Failure category
+  - [ ] UI signals
+  - [ ] Selector analysis
+- [ ] Outputs
+  - [ ] Verdict: `test_issue` / `app_issue` / `unclear`
+  - [ ] Action: `retry` / `fix selector` / `increase timeout` / `investigate app`
+  - [ ] Urgency level
 
 **Exit criteria ✅**
 
 You follow the recommendation without second-guessing.
 
+**Status:** ⏳ **PENDING**
+
 ---
 
 ### PHASE 6 — CLI + Developer UX (2–3 days)
 
-**Goal:** Make this feel like a real tool.
+- [ ] **Goal:** Make this feel like a real tool.
 
 **Build**
 
-- CLI command:
+- [ ] CLI command:
   ```bash
   npx playwright-analyze ./run-artifacts
   ```
-- CLI output
-  - Human-readable summary
-  - JSON output for scripting
-  - Optional Markdown report
+- [ ] CLI output
+  - [ ] Human-readable summary
+  - [ ] JSON output for scripting
+  - [ ] Optional Markdown report
 
 **Exit criteria ✅**
 
@@ -479,23 +493,27 @@ You actually use it after a failed run.
 
 > If you don't use it, it failed.
 
+**Status:** ⏳ **PENDING**
+
 ---
 
 ### PHASE 7 — Hardening & Trust (ongoing)
 
-**Goal:** Make it reliable, not fancy.
+- [ ] **Goal:** Make it reliable, not fancy.
 
 **Improvements**
 
-- Confidence scoring
-- Clear "unknown" states
-- Explainable reasoning
-- Fallback behavior when artifacts are missing
+- [x] Confidence scoring (implemented in Phase 2)
+- [x] Clear "unknown" states (implemented in Phase 2)
+- [x] Explainable reasoning (implemented in Phase 2)
+- [ ] Fallback behavior when artifacts are missing
 
 **Exit criteria ✅**
 
 - It never lies confidently.
 - It says "not enough info" when appropriate.
+
+**Status:** 🚧 **PARTIALLY COMPLETE**
 
 ---
 

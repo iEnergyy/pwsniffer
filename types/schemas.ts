@@ -4,6 +4,19 @@ import { z } from 'zod';
  * Output from Report Decomposition Agent
  * Contains structured facts extracted from Playwright report
  */
+// Schema for OpenAI structured output (requires nullable instead of optional)
+const TestFailureFactsSchemaForAI = z.object({
+  testName: z.string().describe('The name of the failed test'),
+  file: z.string().describe('The file path where the test is located'),
+  failedStep: z.string().describe('The exact step that failed'),
+  error: z.string().describe('The error message'),
+  timeout: z.number().nullable().describe('Timeout value in milliseconds if applicable, or null if not available'),
+  lineNumber: z.number().nullable().describe('Line number where the failure occurred, or null if not available'),
+  columnNumber: z.number().nullable().describe('Column number where the failure occurred, or null if not available'),
+  stackTrace: z.array(z.string()).nullable().describe('Stack trace lines, or null if not available'),
+});
+
+// Schema for internal use (optional fields)
 export const TestFailureFactsSchema = z.object({
   testName: z.string().describe('The name of the failed test'),
   file: z.string().describe('The file path where the test is located'),
@@ -16,6 +29,9 @@ export const TestFailureFactsSchema = z.object({
 });
 
 export type TestFailureFacts = z.infer<typeof TestFailureFactsSchema>;
+
+// Export the AI schema for use in reportDecomposer
+export { TestFailureFactsSchemaForAI };
 
 /**
  * Input structure for the pipeline

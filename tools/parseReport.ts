@@ -151,8 +151,8 @@ function extractFailureFacts(
     failedStep: failedStepName,
     error: errorMessage,
     timeout,
-    lineNumber: location.line || spec.line || test.line,
-    columnNumber: location.column || spec.column || test.column,
+    lineNumber: (location.line || spec.line || test.line) ?? undefined,
+    columnNumber: (location.column || spec.column || test.column) ?? undefined,
     stackTrace: stackTrace.length > 0 ? stackTrace : undefined,
   };
 }

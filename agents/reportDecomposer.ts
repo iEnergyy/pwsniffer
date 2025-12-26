@@ -11,12 +11,10 @@
  * - Validation: Use Zod schemas to ensure output correctness
  */
 
-import { generateObject } from 'ai';
+import { generateText, zodSchema, Output } from 'ai';
 import { openai } from '@ai-sdk/openai';
-import { z } from 'zod';
-import { TestFailureFactsSchema, TestFailureFactsArraySchema, type TestFailureFacts } from '@/types/schemas';
-import { parsePlaywrightReport, extractFailedSteps } from '@/tools/parseReport';
-import { extractStackTrace, extractFileLocation } from '@/tools/extractStackTrace';
+import { TestFailureFactsArraySchema, TestFailureFactsSchemaForAI, type TestFailureFacts } from '@/types/schemas';
+import { parsePlaywrightReport } from '@/tools/parseReport';
 
 /**
  * Input for Report Decomposition Agent
@@ -56,9 +54,11 @@ export async function decomposeReport(
     for (const failure of parsedFailures) {
       // Use AI to validate and enhance the extracted facts
       // The AI helps ensure we haven't missed any important details
-      const result = await generateObject({
+      const result = await generateText({
         model: openai('gpt-4o'),
-        schema: TestFailureFactsSchema,
+        output: Output.object({
+          schema: zodSchema(TestFailureFactsSchemaForAI),
+        }),
         prompt: `Extract and structure the failure facts from this Playwright test failure.
 
 Test Name: ${failure.testName}
@@ -84,7 +84,18 @@ Extract the facts exactly as provided. Do not add reasoning or interpretation. O
 Be precise and deterministic.`,
       });
 
-      enhancedFailures.push(result.object);
+      // Get the structured output from the result
+      const structuredOutput = result.output;
+
+      // Convert null values back to undefined for consistency with our type system
+      const enhanced = {
+        ...structuredOutput,
+        timeout: structuredOutput.timeout ?? undefined,
+        lineNumber: structuredOutput.lineNumber ?? undefined,
+        columnNumber: structuredOutput.columnNumber ?? undefined,
+        stackTrace: structuredOutput.stackTrace ?? undefined,
+      };
+      enhancedFailures.push(enhanced);
     }
 
     // Step 3: Validate the output
@@ -94,7 +105,7 @@ Be precise and deterministic.`,
   } catch (error) {
     // Error handling: If AI fails, fall back to deterministic parsing
     console.error('Error in report decomposition, falling back to deterministic parsing:', error);
-    
+
     try {
       const fallbackFailures = parsePlaywrightReport(input.reportJson);
       return fallbackFailures;

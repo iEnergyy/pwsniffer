@@ -227,7 +227,7 @@ Selector Heuristics Agent (conditional) ✅
         ↓
 Trace Viewer Integration ✅ (Phase 4.5)
         ↓
-Action Synthesis Agent ⏳
+Action Synthesis Agent ✅
 ```
 
 Agents are **conditionally executed** — not all agents run for every failure.
@@ -514,25 +514,33 @@ You copy the suggested selector at least once and it works.
 
 ### PHASE 5 — Action Synthesis Agent (Decision Layer) (2 days)
 
-- [ ] **Goal:** Turn signals into clear next steps.
+- [x] **Goal:** Turn signals into clear next steps.
 
 **Build**
 
-- [ ] Agent: `ActionSynthesizer`
-- [ ] Inputs:
-  - [ ] Failure category
-  - [ ] UI signals
-  - [ ] Selector analysis
-- [ ] Outputs
-  - [ ] Verdict: `test_issue` / `app_issue` / `unclear`
-  - [ ] Action: `retry` / `fix selector` / `increase timeout` / `investigate app`
-  - [ ] Urgency level
+- [x] Agent: `ActionSynthesizer`
+- [x] Inputs:
+  - [x] Failure category
+  - [x] UI signals
+  - [x] Selector analysis
+- [x] Outputs
+  - [x] Verdict: `test_issue` / `app_issue` / `unclear`
+  - [x] Action: `retry` / `fix selector` / `increase timeout` / `investigate app`
+  - [x] Urgency level
+
+**Implementation Details**
+
+- Rule-based heuristics first (deterministic patterns)
+- LLM synthesis for complex cases
+- Clear verdict determination (test_issue vs app_issue vs unclear)
+- Actionable recommendations with urgency levels
+- UI display with prominent diagnosis cards
 
 **Exit criteria ✅**
 
 You follow the recommendation without second-guessing.
 
-**Status:** ⏳ **PENDING**
+**Status:** ✅ **COMPLETE**
 
 ---
 

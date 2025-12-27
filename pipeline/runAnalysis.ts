@@ -6,13 +6,15 @@
  * - Phase 2: Failure Classification
  * - Phase 3: Artifact Correlation
  * - Phase 4: Selector Heuristics
+ * - Phase 5: Action Synthesis
  */
 
-import type { PlaywrightArtifacts, FailureCategory, ArtifactSignals, SelectorAnalysis } from '@/types/schemas';
+import type { PlaywrightArtifacts, FailureCategory, ArtifactSignals, SelectorAnalysis, FinalDiagnosis } from '@/types/schemas';
 import { decomposeReport, type ReportDecomposerInput } from '@/agents/reportDecomposer';
 import { classifyFailures } from '@/agents/failureClassifier';
 import { correlateArtifacts } from '@/agents/artifactCorrelator';
 import { analyzeSelectorHeuristics } from '@/agents/selectorHeuristics';
+import { synthesizeAction } from '@/agents/actionSynthesizer';
 import { readTraceZip } from '@/tools/readTrace';
 import { extractDOMSnapshot } from '@/tools/extractDOM';
 
@@ -157,15 +159,27 @@ export async function runAnalysis(artifacts: PlaywrightArtifacts) {
     selectorAnalyses.push(...failureFacts.map(() => null));
   }
 
-  // TODO: Phase 5 - Action Synthesis Agent
+  // Phase 5: Action Synthesis Agent
+  const diagnoses: Array<FinalDiagnosis | null> = [];
+
+  if (failureFacts.length > 0) {
+    for (let i = 0; i < failureFacts.length; i++) {
+      const diagnosis = await synthesizeAction({
+        failureFacts: failureFacts[i],
+        failureCategory: failureCategories[i],
+        artifactSignals: artifactSignals[i],
+        selectorAnalysis: selectorAnalyses[i],
+      });
+      diagnoses.push(diagnosis);
+    }
+  }
 
   return {
     failureFacts,
     failureCategories,
     artifactSignals,
     selectorAnalyses,
-    // Future phases will add:
-    // diagnosis: ...,
+    diagnoses,
   };
 }
 

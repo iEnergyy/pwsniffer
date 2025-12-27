@@ -15,7 +15,7 @@ import {
   LoaderIcon,
   PlayIcon,
 } from 'lucide-react';
-import type { TestFailureFacts, FailureCategory, ArtifactSignals, SelectorAnalysis } from '@/types/schemas';
+import type { TestFailureFacts, FailureCategory, ArtifactSignals, SelectorAnalysis, FinalDiagnosis } from '@/types/schemas';
 
 function formatFileSize(bytes: number): string {
   if (bytes === 0) return '0 Bytes';
@@ -101,6 +101,58 @@ function getPageStateLabel(pageState: string): string {
   }
 }
 
+function getVerdictBadgeVariant(verdict: FinalDiagnosis['verdict']): 'default' | 'destructive' | 'secondary' | 'outline' {
+  switch (verdict) {
+    case 'test_issue':
+      return 'secondary';
+    case 'app_issue':
+      return 'destructive';
+    case 'unclear':
+      return 'outline';
+    default:
+      return 'outline';
+  }
+}
+
+function getVerdictLabel(verdict: FinalDiagnosis['verdict']): string {
+  switch (verdict) {
+    case 'test_issue':
+      return 'Test Issue';
+    case 'app_issue':
+      return 'App Issue';
+    case 'unclear':
+      return 'Unclear';
+    default:
+      return 'Unknown';
+  }
+}
+
+function getUrgencyBadgeVariant(urgency: FinalDiagnosis['urgency']): 'default' | 'destructive' | 'secondary' | 'outline' {
+  switch (urgency) {
+    case 'high':
+      return 'destructive';
+    case 'medium':
+      return 'default';
+    case 'low':
+      return 'outline';
+    default:
+      return 'outline';
+  }
+}
+
+function getUrgencyLabel(urgency: FinalDiagnosis['urgency']): string {
+  switch (urgency) {
+    case 'high':
+      return 'High';
+    case 'medium':
+      return 'Medium';
+    case 'low':
+      return 'Low';
+    default:
+      return 'Unknown';
+  }
+}
+
 export default function Page() {
   // Analysis state
   const [zipFile, setZipFile] = useState<File | null>(null);
@@ -117,6 +169,7 @@ export default function Page() {
   const [failureCategories, setFailureCategories] = useState<FailureCategory[] | null>(null);
   const [artifactSignals, setArtifactSignals] = useState<Array<ArtifactSignals | null> | null>(null);
   const [selectorAnalyses, setSelectorAnalyses] = useState<Array<SelectorAnalysis | null> | null>(null);
+  const [diagnoses, setDiagnoses] = useState<Array<FinalDiagnosis | null> | null>(null);
   const [screenshotUrls, setScreenshotUrls] = useState<string[]>([]);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [traceSessionId, setTraceSessionId] = useState<string | null>(null);
@@ -194,6 +247,9 @@ export default function Page() {
     setAnalysisError(null);
     setAnalysisResults(null);
     setFailureCategories(null);
+    setArtifactSignals(null);
+    setSelectorAnalyses(null);
+    setDiagnoses(null);
     setScreenshotUrls([]);
 
     try {
@@ -252,6 +308,7 @@ export default function Page() {
       setFailureCategories(data.results.failureCategories || null);
       setArtifactSignals(data.results.artifactSignals || null);
       setSelectorAnalyses(data.results.selectorAnalyses || null);
+      setDiagnoses(data.results.diagnoses || null);
       
       // Update screenshot URLs from API response (for ZIP files)
       if (data.results.screenshotUrls && data.results.screenshotUrls.length > 0) {
@@ -618,6 +675,9 @@ export default function Page() {
                           setParsedInfo(null);
                           setAnalysisResults(null);
                           setFailureCategories(null);
+                          setArtifactSignals(null);
+                          setSelectorAnalyses(null);
+                          setDiagnoses(null);
                         }}
                         className="flex-1"
                       >
@@ -679,6 +739,7 @@ export default function Page() {
                       const category = failureCategories?.[index];
                       const signals = artifactSignals?.[index];
                       const selectorAnalysis = selectorAnalyses?.[index];
+                      const diagnosis = diagnoses?.[index];
                       return (
                         <Card key={index}>
                           <CardHeader>
@@ -732,6 +793,45 @@ export default function Page() {
                             )}
                           </CardHeader>
                           <CardContent className="space-y-2">
+                            {/* Diagnosis Section - Prominent at top */}
+                            {diagnosis && (
+                              <Card className={`mb-4 ${
+                                diagnosis.verdict === 'app_issue' ? 'bg-destructive/10 border-destructive/20' :
+                                diagnosis.verdict === 'test_issue' ? 'bg-secondary/10 border-secondary/20' :
+                                'bg-muted/50'
+                              }`}>
+                                <CardContent className="pt-4">
+                                  <div className="space-y-3">
+                                    <div className="flex items-center gap-3 flex-wrap">
+                                      <div>
+                                        <span className="text-sm font-medium">Verdict: </span>
+                                        <Badge variant={getVerdictBadgeVariant(diagnosis.verdict)} className="ml-2">
+                                          {getVerdictLabel(diagnosis.verdict)}
+                                        </Badge>
+                                      </div>
+                                      <div>
+                                        <span className="text-sm font-medium">Urgency: </span>
+                                        <Badge variant={getUrgencyBadgeVariant(diagnosis.urgency)} className="ml-2">
+                                          {getUrgencyLabel(diagnosis.urgency)}
+                                        </Badge>
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <span className="text-sm font-semibold">Recommended Action: </span>
+                                      <span className="text-sm font-medium text-primary ml-2">
+                                        {diagnosis.recommendedAction}
+                                      </span>
+                                    </div>
+                                    <div>
+                                      <span className="text-sm font-medium">Reason: </span>
+                                      <p className="text-sm text-muted-foreground mt-1">
+                                        {diagnosis.reason}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            )}
                             <div>
                               <span className="text-sm font-medium">File: </span>
                               <span className="text-sm">{failure.file}</span>
@@ -891,6 +991,15 @@ export default function Page() {
                             <div className="mt-4 pt-4 border-t">
                               <p className="text-xs text-muted-foreground">
                                 Selector analysis unavailable (could not extract selector from failed step)
+                              </p>
+                            </div>
+                          )}
+
+                          {/* Diagnosis unavailable message */}
+                          {diagnosis === null && diagnoses !== null && (
+                            <div className="mt-4 pt-4 border-t">
+                              <p className="text-xs text-muted-foreground">
+                                Diagnosis unavailable (insufficient data to determine verdict)
                               </p>
                             </div>
                           )}

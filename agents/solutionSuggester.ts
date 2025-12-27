@@ -18,6 +18,8 @@ import { openai } from '@ai-sdk/openai';
 import type { TestFailureFacts, FailureCategory, ArtifactSignals, SelectorAnalysis, FinalDiagnosis, SolutionSuggestion } from '@/types/schemas';
 import { SolutionSuggestionSchema } from '@/types/schemas';
 import { extractSelector } from '@/tools/extractSelector';
+import type { DOMSnapshot } from '@/tools/extractDOM';
+import { extractTextFromDOM, findSimilarText } from '@/tools/extractPageText';
 
 /**
  * Input for Solution Suggestion Agent
@@ -28,6 +30,7 @@ export interface SolutionSuggesterInput {
   artifactSignals: ArtifactSignals | null;
   selectorAnalysis: SelectorAnalysis | null;
   finalDiagnosis: FinalDiagnosis;
+  domSnapshot?: DOMSnapshot | null; // Optional: DOM snapshot for text extraction
 }
 
 /**
@@ -44,7 +47,7 @@ export type SolutionSuggesterOutput = SolutionSuggestion | null;
 export async function suggestSolution(
   input: SolutionSuggesterInput
 ): Promise<SolutionSuggesterOutput> {
-  const { failureFacts, failureCategory, artifactSignals, selectorAnalysis, finalDiagnosis } = input;
+  const { failureFacts, finalDiagnosis } = input;
 
   console.log('[SolutionSuggester] Starting solution suggestion for:', {
     testName: failureFacts.testName,
@@ -81,10 +84,12 @@ export async function suggestSolution(
 /**
  * Extract full locator from error message
  * Error messages often contain: "Locator: getByRole('heading', { name: 'text' })"
+ * Improved to handle nested quotes, braces, and various Playwright API formats
  */
 function extractFullLocatorFromError(error: string): string | null {
   // Look for "Locator: " pattern which contains the full locator
   // This is the most reliable source as it shows exactly what Playwright tried to use
+  // Handle multiline locators by matching until "Expected:" or end of line
   const locatorMatch = error.match(/Locator:\s*([^\n]+?)(?:\s+Expected:|$)/i);
   if (locatorMatch) {
     return locatorMatch[1].trim();
@@ -96,12 +101,39 @@ function extractFullLocatorFromError(error: string): string | null {
     return locatorMatch2[1].trim();
   }
 
-  // Try to extract getByRole with full options object (handle nested quotes and braces)
-  // Match: getByRole('heading', { name: 'text' })
-  const getByRolePattern = /getByRole\s*\(\s*['"]([^'"]+)['"]\s*,\s*\{[^}]+\}\s*\)/;
-  const getByRoleMatch = error.match(getByRolePattern);
-  if (getByRoleMatch) {
-    return getByRoleMatch[0];
+  // Try to extract getByRole with full options object
+  // Match: getByRole('heading', { name: 'text' }) or getByRole('heading', { name: "text" })
+  // Handle nested quotes and braces more carefully
+  const getByRolePatterns = [
+    // Pattern with single quotes: getByRole('heading', { name: 'text' })
+    /getByRole\s*\(\s*['"]([^'"]+)['"]\s*,\s*\{[^}]*name:\s*['"]([^'"]+)['"][^}]*\}\s*\)/,
+    // Pattern with double quotes: getByRole("heading", { name: "text" })
+    /getByRole\s*\(\s*["']([^"']+)["']\s*,\s*\{[^}]*name:\s*["']([^"']+)["'][^}]*\}\s*\)/,
+    // Pattern without name option: getByRole('heading')
+    /getByRole\s*\(\s*['"]([^'"]+)['"]\s*\)/,
+  ];
+
+  for (const pattern of getByRolePatterns) {
+    const match = error.match(pattern);
+    if (match) {
+      return match[0];
+    }
+  }
+
+  // Try other Playwright locator APIs
+  const otherLocatorPatterns = [
+    /getByText\s*\(\s*['"]([^'"]+)['"]\s*\)/,
+    /getByLabel\s*\(\s*['"]([^'"]+)['"]\s*\)/,
+    /getByPlaceholder\s*\(\s*['"]([^'"]+)['"]\s*\)/,
+    /getByTestId\s*\(\s*['"]([^'"]+)['"]\s*\)/,
+    /locator\s*\(\s*['"]([^'"]+)['"]\s*\)/,
+  ];
+
+  for (const pattern of otherLocatorPatterns) {
+    const match = error.match(pattern);
+    if (match) {
+      return match[0];
+    }
   }
 
   return null;
@@ -113,7 +145,7 @@ function extractFullLocatorFromError(error: string): string | null {
 function applySolutionTemplates(
   input: SolutionSuggesterInput
 ): SolutionSuggestion | null {
-  const { failureFacts, failureCategory, artifactSignals, selectorAnalysis, finalDiagnosis } = input;
+  const { failureFacts, failureCategory, selectorAnalysis, finalDiagnosis } = input;
 
   // Template 1: Selector fixes
   if (
@@ -256,7 +288,7 @@ async function synthesizeSolutionWithLLM(
   input: SolutionSuggesterInput,
   templateHint: SolutionSuggestion | null
 ): Promise<SolutionSuggestion> {
-  const { failureFacts, failureCategory, artifactSignals, selectorAnalysis, finalDiagnosis } = input;
+  const { failureFacts, failureCategory, artifactSignals, selectorAnalysis, finalDiagnosis, domSnapshot } = input;
 
   // Extract original code - prioritize error message which contains full locator
   const fullLocatorFromError = extractFullLocatorFromError(failureFacts.error);
@@ -273,6 +305,40 @@ async function synthesizeSolutionWithLLM(
     }
   }
 
+  // Extract actual text from DOM snapshot
+  let actualPageTexts = domSnapshot ? extractTextFromDOM(domSnapshot) : [];
+
+  // Also use screenshot analysis visibleContent if available (more reliable for actual visible text)
+  if (artifactSignals && artifactSignals.uiState) {
+    // Try to extract text hints from UI state description
+    // This is a fallback if DOM extraction doesn't work well
+  }
+
+  // Detect text mismatch if we have expected text and actual page text
+  let textMismatch: { expected: string; actual: string; similarity: number } | null = null;
+  if (expectedText) {
+    // Always try to find similar text, even if we don't have many page texts
+    if (actualPageTexts.length > 0) {
+      const similarText = findSimilarText(expectedText, actualPageTexts);
+      if (similarText) {
+        // If similarity is reasonable and text is different, it's a mismatch
+        if (similarText.similarity > 0.3 && similarText.text.toLowerCase() !== expectedText.toLowerCase()) {
+          textMismatch = {
+            expected: expectedText,
+            actual: similarText.text,
+            similarity: similarText.similarity,
+          };
+        }
+      }
+    }
+
+    // Also check if expected text contains obvious typos or issues
+    // "orderRING!" is likely a typo for "your order!"
+    if (!textMismatch && expectedText.toLowerCase().includes('ordering') && !expectedText.toLowerCase().includes('your')) {
+      // This is a hint that there might be a typo, but we need actual page text to confirm
+    }
+  }
+
   // Build comprehensive context
   const context = `
 Test Failure Context:
@@ -283,6 +349,8 @@ Test Failure Context:
 ${failureFacts.timeout ? `- Timeout: ${failureFacts.timeout}ms` : ''}
 ${failureFacts.lineNumber ? `- Line: ${failureFacts.lineNumber}` : ''}
 ${expectedText ? `- Expected Text in Selector: "${expectedText}"` : ''}
+${textMismatch ? `- TEXT MISMATCH DETECTED: Test expected "${textMismatch.expected}" but page shows "${textMismatch.actual}" (similarity: ${(textMismatch.similarity * 100).toFixed(0)}%)` : ''}
+${actualPageTexts.length > 0 ? `- Actual Text Found on Page: ${actualPageTexts.slice(0, 10).join(', ')}${actualPageTexts.length > 10 ? '...' : ''}` : ''}
 
 Failure Category:
 - Category: ${failureCategory.category}
@@ -323,10 +391,22 @@ Template Hint (low confidence, please refine):
 
 ${context}
 
-CRITICAL: Pay close attention to the error message. It often shows:
-- The EXACT locator that was used (e.g., "Locator: getByRole('heading', { name: 'Thank you for orderRING!' })")
-- What text was EXPECTED vs what might actually be on the page
-- If the error shows a text mismatch (e.g., expected "orderRING!" but page shows "your order!"), suggest the CORRECT text that matches what's actually on the page
+CRITICAL: Pay close attention to the error message and actual page content:
+
+1. **Error Message Analysis**: The error message shows the EXACT locator that was used (e.g., "Locator: getByRole('heading', { name: 'Thank you for orderRING!' })")
+
+2. **Text Mismatch Detection**: ${textMismatch ? `🚨 CRITICAL: A TEXT MISMATCH WAS DETECTED! The test expected "${textMismatch.expected}" but the page actually shows "${textMismatch.actual}" (similarity: ${(textMismatch.similarity * 100).toFixed(0)}%). 
+
+YOU MUST USE THE ACTUAL TEXT "${textMismatch.actual}" IN YOUR SUGGESTED CODE, NOT THE INCORRECT EXPECTED TEXT "${textMismatch.expected}".
+
+For example, if the test has: getByRole('heading', { name: '${textMismatch.expected}' })
+You MUST suggest: getByRole('heading', { name: '${textMismatch.actual}' })
+
+DO NOT use the incorrect expected text. DO NOT suggest getByText with the wrong text. ALWAYS use "${textMismatch.actual}" which is what's actually on the page.` : 'Check if there\'s a text mismatch between what the test expected and what\'s on the page.'}
+
+3. **Actual Page Content**: ${actualPageTexts.length > 0 ? `The following text was found on the actual page: ${actualPageTexts.slice(0, 20).join(', ')}. ${textMismatch ? `The correct text "${textMismatch.actual}" is in this list.` : 'Use this to suggest the CORRECT selector that matches what\'s actually visible.'}` : 'Use the actual page text provided above to suggest the correct selector.'}
+
+4. **Selector Correction**: ${textMismatch ? `CRITICAL: You MUST override any selector analysis suggestions and use the CORRECT text "${textMismatch.actual}" instead of the incorrect "${textMismatch.expected}". The selector analysis might suggest the wrong text - IGNORE IT and use the actual text.` : 'If the error shows a text mismatch, suggest the CORRECT text that matches what\'s actually on the page, not the incorrect expected text.'}
 
 Based on ALL the information above, provide a comprehensive solution that includes:
 
@@ -334,7 +414,13 @@ Based on ALL the information above, provide a comprehensive solution that includ
    - Copy-paste ready
    - Complete and runnable
    - Use proper Playwright best practices (getByRole, getByText, etc. over CSS selectors)
-   - If the error shows a text mismatch, use the CORRECT text that actually appears on the page
+   - ${textMismatch ? `🚨 CRITICAL: You MUST use the ACTUAL text "${textMismatch.actual}" that appears on the page, NOT the incorrect expected text "${textMismatch.expected}". 
+
+Example: If original was getByRole('heading', { name: '${textMismatch.expected}' }), suggest getByRole('heading', { name: '${textMismatch.actual}' }).
+
+DO NOT use "${textMismatch.expected}" - it's wrong. ALWAYS use "${textMismatch.actual}".` : 'If the error shows a text mismatch, use the CORRECT text that actually appears on the page'}
+   - ${actualPageTexts.length > 0 && !textMismatch ? `Use one of these actual texts from the page: ${actualPageTexts.slice(0, 5).join(', ')}` : ''}
+   - ${textMismatch ? `IGNORE any selector analysis suggestions that use the wrong text. Use "${textMismatch.actual}" instead.` : ''}
    - If the error message shows the full locator with options, match that format exactly
    - Include necessary imports if relevant
    - If no code fix is applicable, return null

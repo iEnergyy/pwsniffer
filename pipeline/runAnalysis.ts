@@ -180,6 +180,22 @@ export async function runAnalysis(artifacts: PlaywrightArtifacts) {
   const solutionSuggestions: Array<SolutionSuggestion | null> = [];
 
   if (failureFacts.length > 0 && diagnoses.length > 0) {
+    // Extract DOM snapshots for solution suggester (reuse from Phase 4 if available)
+    const domSnapshotsForSolutions: Array<Awaited<ReturnType<typeof extractDOMSnapshot>> | null> = [];
+    
+    if (traceData) {
+      for (let i = 0; i < failureFacts.length; i++) {
+        const failureTime = traceData.metadata?.endTime ||
+          (traceData.actions.length > 0
+            ? Math.max(...traceData.actions.map(a => a.timestamp))
+            : Date.now());
+        const domSnapshot = await extractDOMSnapshot(traceData, failureTime);
+        domSnapshotsForSolutions.push(domSnapshot);
+      }
+    } else {
+      domSnapshotsForSolutions.push(...failureFacts.map(() => null));
+    }
+
     for (let i = 0; i < failureFacts.length; i++) {
       const diagnosis = diagnoses[i];
       
@@ -191,6 +207,7 @@ export async function runAnalysis(artifacts: PlaywrightArtifacts) {
           artifactSignals: artifactSignals[i],
           selectorAnalysis: selectorAnalyses[i],
           finalDiagnosis: diagnosis,
+          domSnapshot: domSnapshotsForSolutions[i],
         });
         solutionSuggestions.push(suggestion);
       } else {

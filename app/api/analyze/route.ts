@@ -122,6 +122,7 @@ export async function POST(req: NextRequest) {
         failureFacts: results.failureFacts,
         failureCategories: results.failureCategories,
         artifactSignals: results.artifactSignals,
+        selectorAnalyses: results.selectorAnalyses,
         screenshotUrls,
       },
     });

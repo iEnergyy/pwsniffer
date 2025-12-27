@@ -223,7 +223,9 @@ Failure Classification Agent ✅
         ↓
 Artifact Correlation Agent ✅
         ↓
-Selector Heuristics Agent (conditional) ⏳
+Selector Heuristics Agent (conditional) ✅
+        ↓
+Trace Viewer Integration ⏳ (Phase 4.5)
         ↓
 Action Synthesis Agent ⏳
 ```
@@ -434,29 +436,64 @@ You trust this agent more than manually reading the report.
 
 ### PHASE 4 — Selector Heuristics Agent (Stateless Intelligence) (3 days)
 
-- [ ] **Goal:** Solve the #1 Playwright pain without history.
+- [x] **Goal:** Solve the #1 Playwright pain without history.
 
 **Build**
 
-- [ ] Agent: `SelectorHeuristics`
-- [ ] Input:
-  - [ ] Failing selector
-  - [ ] DOM snapshot
-- [ ] Output:
-  - [ ] Selector quality score
-  - [ ] Suggested alternative
+- [x] Agent: `SelectorHeuristics`
+- [x] Input:
+  - [x] Failing selector
+  - [x] DOM snapshot
+- [x] Output:
+  - [x] Selector quality score
+  - [x] Suggested alternative
 
 **Heuristics priority**
 
-- [ ] Semantic selectors > CSS
-- [ ] Role/name > text
-- [ ] Stable attributes > deep nesting
+- [x] Semantic selectors > CSS
+- [x] Role/name > text
+- [x] Stable attributes > deep nesting
 
 **Exit criteria ✅**
 
 You copy the suggested selector at least once and it works.
 
 > This is a huge win moment.
+
+**Status:** ✅ **COMPLETE**
+
+---
+
+### PHASE 4.5 — Playwright Trace Viewer Integration (2–3 days)
+
+- [ ] **Goal:** Enable interactive trace viewing directly in the analysis UI.
+
+**Build**
+
+- [ ] Integrate Playwright Trace Viewer
+  - [ ] Research trace viewer implementation ([trace.playwright.dev](https://trace.playwright.dev/))
+  - [ ] Set up trace file serving endpoint
+  - [ ] Embed or link to trace viewer in analysis results UI
+  - [ ] Handle trace.zip file access and routing
+- [ ] UI Integration
+  - [ ] Add "View Trace" button/link in failure analysis cards
+  - [ ] Open trace viewer in new tab or embedded iframe
+  - [ ] Pass trace.zip file reference to viewer
+- [ ] File Serving
+  - [ ] Create API endpoint to serve trace files
+  - [ ] Handle trace.zip extraction and serving
+  - [ ] Ensure proper CORS headers for trace viewer
+
+**References**
+
+- [Playwright Trace Viewer](https://trace.playwright.dev/)
+- [Playwright GitHub Repository](https://github.com/microsoft/playwright)
+
+**Exit criteria ✅**
+
+- You can click "View Trace" on any failure and see the interactive trace viewer
+- Trace viewer shows full execution timeline, DOM snapshots, and action details
+- No need to manually open trace.zip files
 
 **Status:** ⏳ **PENDING**
 

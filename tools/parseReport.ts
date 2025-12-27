@@ -139,7 +139,41 @@ function extractFailureFacts(
   const timeout = result.duration || undefined;
 
   // Determine the failed step name
-  const failedStepName = failingStep?.title || 'Unknown step';
+  // If no step info, try to extract from error message
+  let failedStepName = failingStep?.title;
+  
+  if (!failedStepName) {
+    // Try to extract a meaningful step name from error message
+    // Look for common patterns like "Locator: getByRole(...)" or action names
+    const locatorMatch = errorMessage.match(/Locator:\s*(.+?)(?:\n|$)/i);
+    if (locatorMatch) {
+      // Extract the locator call (e.g., "getByRole('heading', { name: '...' })")
+      const locatorText = locatorMatch[1].trim();
+      // Try to extract just the method name and first argument for brevity
+      const methodMatch = locatorText.match(/^(\w+)\(['"]([^'"]+)['"]/);
+      if (methodMatch) {
+        failedStepName = `${methodMatch[1]}('${methodMatch[2]}')`;
+      } else {
+        // Fallback to first 60 chars of locator
+        failedStepName = locatorText.substring(0, 60) + (locatorText.length > 60 ? '...' : '');
+      }
+    } else {
+      // Try to find action names in error (click, fill, expect, etc.)
+      const actionMatch = errorMessage.match(/\b(click|fill|type|press|expect|waitFor|getBy\w+)\s*\(/i);
+      if (actionMatch) {
+        // Try to get the full call with selector
+        const fullCallMatch = errorMessage.match(new RegExp(`\\b${actionMatch[1]}\\s*\\([^)]+\\)`, 'i'));
+        if (fullCallMatch) {
+          failedStepName = fullCallMatch[0].substring(0, 80);
+        } else {
+          failedStepName = actionMatch[1] + '(...)';
+        }
+      } else {
+        // Last resort: use a generic but more descriptive name
+        failedStepName = 'Element interaction failed';
+      }
+    }
+  }
 
   // In Playwright reports, the test name is typically on the spec, not the test object
   // Fallback to test.title if spec.title is not available

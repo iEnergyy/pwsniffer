@@ -88,3 +88,17 @@ export const TestFailureFactsArraySchema = z.array(TestFailureFactsSchema);
 
 export type TestFailureFactsArray = z.infer<typeof TestFailureFactsArraySchema>;
 
+/**
+ * Output from Selector Heuristics Agent (for Phase 4)
+ */
+export const SelectorAnalysisSchema = z.object({
+  selectorQuality: z.enum(['excellent', 'good', 'fragile', 'poor']).describe('Quality rating of the selector'),
+  qualityScore: z.number().min(0).max(1).describe('Numeric quality score (0-1)'),
+  issues: z.array(z.string()).describe('List of issues found with the selector'),
+  suggestedSelector: z.string().nullable().describe('Suggested alternative selector, or null if current is good'),
+  suggestionReason: z.string().nullable().describe('Explanation of why the suggestion is better'),
+  confidence: z.number().min(0).max(1).describe('Confidence in the analysis'),
+});
+
+export type SelectorAnalysis = z.infer<typeof SelectorAnalysisSchema>;
+

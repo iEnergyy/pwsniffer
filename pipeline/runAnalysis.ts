@@ -5,12 +5,16 @@
  * - Phase 1: Report Decomposition
  * - Phase 2: Failure Classification
  * - Phase 3: Artifact Correlation
+ * - Phase 4: Selector Heuristics
  */
 
-import type { PlaywrightArtifacts, FailureCategory, ArtifactSignals } from '@/types/schemas';
+import type { PlaywrightArtifacts, FailureCategory, ArtifactSignals, SelectorAnalysis } from '@/types/schemas';
 import { decomposeReport, type ReportDecomposerInput } from '@/agents/reportDecomposer';
 import { classifyFailures } from '@/agents/failureClassifier';
 import { correlateArtifacts } from '@/agents/artifactCorrelator';
+import { analyzeSelectorHeuristics } from '@/agents/selectorHeuristics';
+import { readTraceZip } from '@/tools/readTrace';
+import { extractDOMSnapshot } from '@/tools/extractDOM';
 
 /**
  * Run the complete analysis pipeline
@@ -38,8 +42,12 @@ export async function runAnalysis(artifacts: PlaywrightArtifacts) {
 
   // Phase 3: Artifact Correlation (conditional - requires trace.zip)
   const artifactSignals: Array<ArtifactSignals | null> = [];
+  let traceData: Awaited<ReturnType<typeof readTraceZip>> | null = null;
   
   if (artifacts.traceZip && failureFacts.length > 0) {
+    // Read trace data once for reuse
+    traceData = await readTraceZip(artifacts.traceZip);
+    
     // Correlate artifacts for each failure
     const correlations = await Promise.all(
       failureFacts.map(facts => 
@@ -55,15 +63,108 @@ export async function runAnalysis(artifacts: PlaywrightArtifacts) {
     artifactSignals.push(...failureFacts.map(() => null));
   }
 
-  // TODO: Phase 4 - Selector Heuristics Agent
+  // Phase 4: Selector Heuristics Agent (conditional - only for selector-related failures)
+  const selectorAnalyses: Array<SelectorAnalysis | null> = [];
+  
+  if (failureFacts.length > 0 && failureCategories.length > 0) {
+    // Extract DOM snapshots for each failure (if trace available)
+    const domSnapshots: Array<Awaited<ReturnType<typeof extractDOMSnapshot>> | null> = [];
+    
+    if (traceData) {
+      // Extract DOM snapshot for each failure
+      for (let i = 0; i < failureFacts.length; i++) {
+        const failureTime = traceData.metadata?.endTime || 
+                           (traceData.actions.length > 0 
+                             ? Math.max(...traceData.actions.map(a => a.timestamp))
+                             : Date.now());
+        const domSnapshot = await extractDOMSnapshot(traceData, failureTime);
+        domSnapshots.push(domSnapshot);
+      }
+    } else {
+      // No trace available, no DOM snapshots
+      domSnapshots.push(...failureFacts.map(() => null));
+    }
+
+    // Run selector heuristics for each failure
+    for (let i = 0; i < failureFacts.length; i++) {
+      const failureCategory = failureCategories[i];
+      const domSnapshot = domSnapshots[i];
+      
+      // Check if this is a selector-related failure
+      const isSelectorRelated = 
+        failureCategory.category === 'selector_not_found' ||
+        (artifactSignals[i]?.uiState === 'element missing') ||
+        failureFacts[i].failedStep.toLowerCase().includes('selector') ||
+        failureFacts[i].failedStep.toLowerCase().includes('locator');
+
+      // Find the failed action from trace (if available)
+      let failedAction: Awaited<ReturnType<typeof readTraceZip>>['actions'][0] | null = null;
+      if (traceData) {
+        console.log(`[Pipeline] Looking for failed action in trace. Total actions: ${traceData.actions.length}`);
+        
+        // Find actions with errors, closest to failure time
+        const failureTime = traceData.metadata?.endTime || 
+                           (traceData.actions.length > 0 
+                             ? Math.max(...traceData.actions.map(a => a.timestamp))
+                             : Date.now());
+        
+        // Find actions with errors, sorted by proximity to failure time
+        const actionsWithErrors = traceData.actions
+          .filter(a => a.error)
+          .sort((a, b) => Math.abs(a.timestamp - failureTime) - Math.abs(b.timestamp - failureTime));
+        
+        console.log(`[Pipeline] Found ${actionsWithErrors.length} actions with errors`);
+        
+        if (actionsWithErrors.length > 0) {
+          failedAction = actionsWithErrors[0];
+          console.log('[Pipeline] Using failed action:', {
+            actionName: failedAction.action?.name,
+            selector: failedAction.action?.selector,
+            error: failedAction.error?.message?.substring(0, 100),
+          });
+        } else {
+          // If no actions with errors, try to find the last action (might be the one that failed)
+          const lastAction = traceData.actions.length > 0 
+            ? traceData.actions[traceData.actions.length - 1]
+            : null;
+          
+          if (lastAction) {
+            console.log('[Pipeline] No actions with errors found, using last action:', {
+              actionName: lastAction.action?.name,
+              selector: lastAction.action?.selector,
+            });
+            failedAction = lastAction;
+          }
+        }
+      } else {
+        console.log('[Pipeline] No trace data available');
+      }
+
+      if (isSelectorRelated) {
+        const analysis = await analyzeSelectorHeuristics({
+          failureFacts: failureFacts[i],
+          failureCategory,
+          domSnapshot,
+          failedAction,
+        });
+        selectorAnalyses.push(analysis);
+      } else {
+        selectorAnalyses.push(null);
+      }
+    }
+  } else {
+    // No failures or categories, return null for each
+    selectorAnalyses.push(...failureFacts.map(() => null));
+  }
+
   // TODO: Phase 5 - Action Synthesis Agent
 
   return {
     failureFacts,
     failureCategories,
     artifactSignals,
+    selectorAnalyses,
     // Future phases will add:
-    // selectorAnalysis: ...,
     // diagnosis: ...,
   };
 }

@@ -15,7 +15,7 @@ import {
   LoaderIcon,
   PlayIcon,
 } from 'lucide-react';
-import type { TestFailureFacts, FailureCategory, ArtifactSignals } from '@/types/schemas';
+import type { TestFailureFacts, FailureCategory, ArtifactSignals, SelectorAnalysis } from '@/types/schemas';
 
 function formatFileSize(bytes: number): string {
   if (bytes === 0) return '0 Bytes';
@@ -116,6 +116,7 @@ export default function Page() {
   const [analysisResults, setAnalysisResults] = useState<TestFailureFacts[] | null>(null);
   const [failureCategories, setFailureCategories] = useState<FailureCategory[] | null>(null);
   const [artifactSignals, setArtifactSignals] = useState<Array<ArtifactSignals | null> | null>(null);
+  const [selectorAnalyses, setSelectorAnalyses] = useState<Array<SelectorAnalysis | null> | null>(null);
   const [screenshotUrls, setScreenshotUrls] = useState<string[]>([]);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
 
@@ -246,6 +247,7 @@ export default function Page() {
       setAnalysisResults(data.results.failureFacts);
       setFailureCategories(data.results.failureCategories || null);
       setArtifactSignals(data.results.artifactSignals || null);
+      setSelectorAnalyses(data.results.selectorAnalyses || null);
       
       // Update screenshot URLs from API response (for ZIP files)
       if (data.results.screenshotUrls && data.results.screenshotUrls.length > 0) {
@@ -259,9 +261,10 @@ export default function Page() {
   };
 
   return (
-    <div className="flex flex-col h-screen max-w-4xl mx-auto p-4">
-      <div className="flex-1 overflow-y-auto mb-4 space-y-4">
-          <Card>
+    <div className="flex flex-col h-screen max-w-7xl mx-auto p-4">
+      <div className="flex-1 overflow-y-auto mb-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <Card className="h-fit">
             <CardHeader>
               <CardTitle>Upload Playwright Artifacts</CardTitle>
             </CardHeader>
@@ -642,11 +645,18 @@ export default function Page() {
                   </CardContent>
                 </Card>
               )}
+            </CardContent>
+          </Card>
 
+          {/* Analysis Results Section */}
+          <Card className="h-fit">
+            <CardHeader>
+              <CardTitle>Analysis Results</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
               {/* Results Display */}
               {analysisResults && (
                 <div className="space-y-4">
-                  <h3 className="text-lg font-semibold">Analysis Results</h3>
                   {analysisResults.length === 0 ? (
                     <Card>
                       <CardContent className="pt-6">
@@ -659,6 +669,7 @@ export default function Page() {
                     analysisResults.map((failure, index) => {
                       const category = failureCategories?.[index];
                       const signals = artifactSignals?.[index];
+                      const selectorAnalysis = selectorAnalyses?.[index];
                       return (
                         <Card key={index}>
                           <CardHeader>
@@ -777,6 +788,73 @@ export default function Page() {
                               </p>
                             </div>
                           )}
+
+                          {/* Selector Analysis Section */}
+                          {selectorAnalysis && (
+                            <div className="mt-4 pt-4 border-t">
+                              <h4 className="text-sm font-semibold mb-3">Selector Analysis</h4>
+                              <div className="space-y-3">
+                                <div>
+                                  <span className="text-sm font-medium">Quality: </span>
+                                  <Badge 
+                                    variant={
+                                      selectorAnalysis.selectorQuality === 'excellent' ? 'default' :
+                                      selectorAnalysis.selectorQuality === 'good' ? 'default' :
+                                      selectorAnalysis.selectorQuality === 'fragile' ? 'secondary' :
+                                      'destructive'
+                                    }
+                                    className="ml-2"
+                                  >
+                                    {selectorAnalysis.selectorQuality}
+                                  </Badge>
+                                  <span className="text-xs text-muted-foreground ml-2">
+                                    (Score: {(selectorAnalysis.qualityScore * 100).toFixed(0)}%)
+                                  </span>
+                                </div>
+                                {selectorAnalysis.issues && selectorAnalysis.issues.length > 0 && (
+                                  <div>
+                                    <span className="text-sm font-medium">Issues: </span>
+                                    <ul className="list-disc list-inside mt-1 space-y-1">
+                                      {selectorAnalysis.issues.map((issue, issueIndex) => (
+                                        <li key={issueIndex} className="text-sm text-muted-foreground">
+                                          {issue}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+                                {selectorAnalysis.suggestedSelector && (
+                                  <div>
+                                    <span className="text-sm font-medium">Suggested Selector: </span>
+                                    <Card className="bg-muted mt-2">
+                                      <CardContent className="pt-4">
+                                        <code className="text-xs text-primary font-mono">
+                                          {selectorAnalysis.suggestedSelector}
+                                        </code>
+                                      </CardContent>
+                                    </Card>
+                                    {selectorAnalysis.suggestionReason && (
+                                      <p className="text-xs text-muted-foreground mt-2">
+                                        {selectorAnalysis.suggestionReason}
+                                      </p>
+                                    )}
+                                  </div>
+                                )}
+                                <div>
+                                  <span className="text-xs text-muted-foreground">
+                                    Confidence: {(selectorAnalysis.confidence * 100).toFixed(0)}%
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                          {selectorAnalysis === null && selectorAnalyses !== null && category?.category === 'selector_not_found' && (
+                            <div className="mt-4 pt-4 border-t">
+                              <p className="text-xs text-muted-foreground">
+                                Selector analysis unavailable (could not extract selector from failed step)
+                              </p>
+                            </div>
+                          )}
                           </CardContent>
                         </Card>
                       );
@@ -784,8 +862,14 @@ export default function Page() {
                   )}
                 </div>
               )}
+              {!analysisResults && (
+                <p className="text-sm text-muted-foreground text-center py-8">
+                  Upload and analyze artifacts to see results here
+                </p>
+              )}
             </CardContent>
           </Card>
+        </div>
       </div>
     </div>
   );

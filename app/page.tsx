@@ -119,6 +119,10 @@ export default function Page() {
   const [selectorAnalyses, setSelectorAnalyses] = useState<Array<SelectorAnalysis | null> | null>(null);
   const [screenshotUrls, setScreenshotUrls] = useState<string[]>([]);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [traceSessionId, setTraceSessionId] = useState<string | null>(null);
+  const [showTraceViewer, setShowTraceViewer] = useState<boolean>(false);
+  const [traceViewerLoading, setTraceViewerLoading] = useState<boolean>(true);
+  const [traceViewerError, setTraceViewerError] = useState<boolean>(false);
 
   const handleParse = async () => {
     // Check if using ZIP (primary method) or individual files (advanced)
@@ -252,6 +256,11 @@ export default function Page() {
       // Update screenshot URLs from API response (for ZIP files)
       if (data.results.screenshotUrls && data.results.screenshotUrls.length > 0) {
         setScreenshotUrls(data.results.screenshotUrls);
+      }
+
+      // Set trace session ID from API response (trace upload handled on server)
+      if (data.results.traceSessionId) {
+        setTraceSessionId(data.results.traceSessionId);
       }
     } catch (error) {
       setAnalysisError(error instanceof Error ? error.message : 'Unknown error occurred');
@@ -675,16 +684,46 @@ export default function Page() {
                           <CardHeader>
                             <div className="flex items-center justify-between">
                               <CardTitle className="text-base">{failure.testName}</CardTitle>
-                              {category && (
-                                <div className="flex items-center gap-2">
-                                  <Badge variant={getCategoryBadgeVariant(category.category)}>
-                                    {getCategoryLabel(category.category)}
-                                  </Badge>
-                                  <span className={`text-xs ${getConfidenceColor(category.confidence)}`}>
-                                    {(category.confidence * 100).toFixed(0)}%
-                                  </span>
-                                </div>
-                              )}
+                              <div className="flex items-center gap-2">
+                                {category && (
+                                  <>
+                                    <Badge variant={getCategoryBadgeVariant(category.category)}>
+                                      {getCategoryLabel(category.category)}
+                                    </Badge>
+                                    <span className={`text-xs ${getConfidenceColor(category.confidence)}`}>
+                                      {(category.confidence * 100).toFixed(0)}%
+                                    </span>
+                                  </>
+                                )}
+                                {traceSessionId && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={async () => {
+                                      // Verify trace is still available before opening viewer
+                                      try {
+                                        const response = await fetch(`/api/trace/${traceSessionId}`, {
+                                          method: 'HEAD',
+                                        });
+                                        if (response.ok) {
+                                          setTraceViewerLoading(true);
+                                          setTraceViewerError(false);
+                                          setShowTraceViewer(true);
+                                        } else {
+                                          setAnalysisError('Trace session expired. Please re-analyze to view trace.');
+                                          setTraceSessionId(null);
+                                        }
+                                      } catch (error) {
+                                        setAnalysisError('Failed to verify trace availability.');
+                                      }
+                                    }}
+                                    className="flex items-center gap-1"
+                                  >
+                                    <FileTextIcon className="h-3 w-3" />
+                                    View Trace
+                                  </Button>
+                                )}
+                              </div>
                             </div>
                             {category && (
                               <p className="text-xs text-muted-foreground mt-2">
@@ -871,6 +910,138 @@ export default function Page() {
           </Card>
         </div>
       </div>
+
+      {/* Trace Viewer Modal */}
+      {showTraceViewer && traceSessionId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-background rounded-lg shadow-lg w-full h-full max-w-7xl max-h-[90vh] m-4 flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h2 className="text-lg font-semibold">Playwright Trace Viewer</h2>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    // Download trace file
+                    const url = `/api/trace/${traceSessionId}`;
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = 'trace.zip';
+                    link.click();
+                  }}
+                >
+                  Download Trace
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setShowTraceViewer(false);
+                    setTraceViewerLoading(true);
+                    setTraceViewerError(false);
+                  }}
+                >
+                  <XIcon className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            <div className="flex-1 relative flex items-center justify-center p-8">
+              <div className="text-center max-w-2xl space-y-4">
+                <FileTextIcon className="h-16 w-16 mx-auto text-muted-foreground" />
+                <h3 className="text-lg font-semibold">Trace Viewer</h3>
+                <p className="text-sm text-muted-foreground">
+                  Due to browser security restrictions, the trace viewer cannot be embedded directly.
+                  You can view your trace using one of these methods:
+                </p>
+                <div className="space-y-3 mt-6">
+                  <div className="border rounded-lg p-4 text-left">
+                    <h4 className="font-medium mb-2">Option 1: Download and View Locally</h4>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      Download the trace file and use Playwright's CLI to view it.
+                    </p>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={async () => {
+                          try {
+                            const response = await fetch(`/api/trace/${traceSessionId}`);
+                            if (response.ok) {
+                              const blob = await response.blob();
+                              const url = URL.createObjectURL(blob);
+                              const link = document.createElement('a');
+                              link.href = url;
+                              link.download = 'trace.zip';
+                              document.body.appendChild(link);
+                              link.click();
+                              document.body.removeChild(link);
+                              URL.revokeObjectURL(url);
+                            }
+                          } catch (error) {
+                            setAnalysisError('Failed to download trace file.');
+                          }
+                        }}
+                      >
+                        Download Trace
+                      </Button>
+                      <p className="text-xs text-muted-foreground self-center ml-2">
+                        Then run: <code className="bg-muted px-1 py-0.5 rounded">npx playwright show-trace trace.zip</code>
+                      </p>
+                    </div>
+                  </div>
+                  <div className="border rounded-lg p-4 text-left">
+                    <h4 className="font-medium mb-2">Option 2: Open in Trace Viewer Website</h4>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      Open the trace viewer website and upload your trace file there.
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={async () => {
+                        try {
+                          const response = await fetch(`/api/trace/${traceSessionId}`);
+                          if (response.ok) {
+                            const blob = await response.blob();
+                            const url = URL.createObjectURL(blob);
+                            // Open trace viewer in new tab
+                            window.open('https://trace.playwright.dev/', '_blank');
+                            // Store blob URL temporarily for user to upload
+                            (window as any).__traceBlobUrl = url;
+                            alert('Trace viewer opened. Please upload the trace file that will be downloaded.');
+                            // Trigger download
+                            const link = document.createElement('a');
+                            link.href = url;
+                            link.download = 'trace.zip';
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                          }
+                        } catch (error) {
+                          setAnalysisError('Failed to open trace viewer.');
+                        }
+                      }}
+                    >
+                      Open Trace Viewer
+                    </Button>
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setShowTraceViewer(false);
+                    setTraceViewerLoading(true);
+                    setTraceViewerError(false);
+                  }}
+                  className="mt-4"
+                >
+                  Close
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

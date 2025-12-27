@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { runAnalysis } from '@/pipeline/runAnalysis';
 import type { PlaywrightArtifacts } from '@/types/schemas';
 import { extractArtifactsFromZip, isZipFile } from '@/tools/extractArtifacts';
+import { randomUUID } from 'crypto';
+import { traceStore } from '../trace/upload/route';
 
 // Allow longer duration for analysis
 export const maxDuration = 60;
@@ -116,6 +118,30 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Upload trace file for trace viewer
+    let traceSessionId: string | null = null;
+    try {
+      // Get trace buffer - it's either already a Buffer or a File
+      let traceBuffer: Buffer;
+      if (artifacts.traceZip instanceof Buffer) {
+        traceBuffer = artifacts.traceZip;
+      } else if (artifacts.traceZip instanceof File) {
+        const arrayBuffer = await artifacts.traceZip.arrayBuffer();
+        traceBuffer = Buffer.from(arrayBuffer);
+      } else {
+        throw new Error('Invalid trace file format');
+      }
+
+      // Generate session ID and store trace
+      const sessionId = randomUUID();
+      const expiresAt = Date.now() + 60 * 60 * 1000; // 1 hour
+      traceStore.set(sessionId, { buffer: traceBuffer, expiresAt });
+      traceSessionId = sessionId;
+    } catch (traceError) {
+      console.warn('Failed to upload trace for viewer:', traceError);
+      // Don't fail the analysis if trace upload fails
+    }
+
     return NextResponse.json({
       success: true,
       results: {
@@ -124,6 +150,7 @@ export async function POST(req: NextRequest) {
         artifactSignals: results.artifactSignals,
         selectorAnalyses: results.selectorAnalyses,
         screenshotUrls,
+        traceSessionId,
       },
     });
   } catch (error) {

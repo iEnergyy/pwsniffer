@@ -1,41 +1,42 @@
 {
-  "name": "pwsniffer",
-  "version": "0.1.0",
-  "private": true,
-  "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint"
-  },
-  "dependencies": {
-    "@ai-sdk/openai": "^3.0.1",
-    "@ai-sdk/react": "^3.0.3",
-    "@base-ui/react": "^1.0.0",
-    "adm-zip": "^0.5.16",
-    "ai": "^6.0.3",
-    "class-variance-authority": "^0.7.1",
-    "clsx": "^2.1.1",
-    "lucide-react": "^0.562.0",
-    "next": "16.1.1",
-    "playwright": "^1.48.0",
-    "radix-ui": "^1.4.3",
-    "react": "19.2.3",
-    "react-dom": "19.2.3",
-    "shadcn": "^3.6.2",
-    "tailwind-merge": "^3.4.0",
-    "tw-animate-css": "^1.4.0",
-    "zod": "^4.2.1"
-  },
-  "devDependencies": {
-    "@tailwindcss/postcss": "^4",
-    "@types/adm-zip": "^0.5.7",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "16.1.1",
-    "tailwindcss": "^4",
-    "typescript": "^5"
-  }
+	"name": "pwsniffer",
+	"version": "0.1.0",
+	"private": true,
+	"scripts": {
+		"dev": "next dev",
+		"build": "next build",
+		"start": "next start",
+		"lint": "eslint"
+	},
+	"dependencies": {
+		"@ai-sdk/openai": "^3.0.1",
+		"@ai-sdk/react": "^3.0.3",
+		"@base-ui/react": "^1.0.0",
+		"adm-zip": "^0.5.16",
+		"ai": "^6.0.3",
+		"class-variance-authority": "^0.7.1",
+		"clsx": "^2.1.1",
+		"lucide-react": "^0.562.0",
+		"next": "16.1.1",
+		"playwright": "^1.48.0",
+		"radix-ui": "^1.4.3",
+		"react": "19.2.3",
+		"react-dom": "19.2.3",
+		"shadcn": "^3.6.2",
+		"tailwind-merge": "^3.4.0",
+		"tw-animate-css": "^1.4.0",
+		"zod": "^4.2.1"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "2.3.10",
+		"@tailwindcss/postcss": "^4",
+		"@types/adm-zip": "^0.5.7",
+		"@types/node": "^20",
+		"@types/react": "^19",
+		"@types/react-dom": "^19",
+		"eslint": "^9",
+		"eslint-config-next": "16.1.1",
+		"tailwindcss": "^4",
+		"typescript": "^5"
+	}
 }

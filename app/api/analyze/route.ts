@@ -150,6 +150,7 @@ export async function POST(req: NextRequest) {
         artifactSignals: results.artifactSignals,
         selectorAnalyses: results.selectorAnalyses,
         diagnoses: results.diagnoses,
+        solutionSuggestions: results.solutionSuggestions,
         screenshotUrls,
         traceSessionId,
       },

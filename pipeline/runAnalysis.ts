@@ -7,14 +7,16 @@
  * - Phase 3: Artifact Correlation
  * - Phase 4: Selector Heuristics
  * - Phase 5: Action Synthesis
+ * - Phase 5.5: Solution Suggestion
  */
 
-import type { PlaywrightArtifacts, FailureCategory, ArtifactSignals, SelectorAnalysis, FinalDiagnosis } from '@/types/schemas';
+import type { PlaywrightArtifacts, FailureCategory, ArtifactSignals, SelectorAnalysis, FinalDiagnosis, SolutionSuggestion } from '@/types/schemas';
 import { decomposeReport, type ReportDecomposerInput } from '@/agents/reportDecomposer';
 import { classifyFailures } from '@/agents/failureClassifier';
 import { correlateArtifacts } from '@/agents/artifactCorrelator';
 import { analyzeSelectorHeuristics } from '@/agents/selectorHeuristics';
 import { synthesizeAction } from '@/agents/actionSynthesizer';
+import { suggestSolution } from '@/agents/solutionSuggester';
 import { readTraceZip } from '@/tools/readTrace';
 import { extractDOMSnapshot } from '@/tools/extractDOM';
 
@@ -26,8 +28,8 @@ import { extractDOMSnapshot } from '@/tools/extractDOM';
  */
 export async function runAnalysis(artifacts: PlaywrightArtifacts) {
   // Phase 1: Report Decomposition
-  const reportJson = typeof artifacts.reportJson === 'string' 
-    ? artifacts.reportJson 
+  const reportJson = typeof artifacts.reportJson === 'string'
+    ? artifacts.reportJson
     : artifacts.reportJson.toString('utf-8');
 
   const decompositionInput: ReportDecomposerInput = {
@@ -45,14 +47,14 @@ export async function runAnalysis(artifacts: PlaywrightArtifacts) {
   // Phase 3: Artifact Correlation (conditional - requires trace.zip)
   const artifactSignals: Array<ArtifactSignals | null> = [];
   let traceData: Awaited<ReturnType<typeof readTraceZip>> | null = null;
-  
+
   if (artifacts.traceZip && failureFacts.length > 0) {
     // Read trace data once for reuse
     traceData = await readTraceZip(artifacts.traceZip);
-    
+
     // Correlate artifacts for each failure
     const correlations = await Promise.all(
-      failureFacts.map(facts => 
+      failureFacts.map(facts =>
         correlateArtifacts({
           failureFacts: facts,
           artifacts,
@@ -67,18 +69,18 @@ export async function runAnalysis(artifacts: PlaywrightArtifacts) {
 
   // Phase 4: Selector Heuristics Agent (conditional - only for selector-related failures)
   const selectorAnalyses: Array<SelectorAnalysis | null> = [];
-  
+
   if (failureFacts.length > 0 && failureCategories.length > 0) {
     // Extract DOM snapshots for each failure (if trace available)
     const domSnapshots: Array<Awaited<ReturnType<typeof extractDOMSnapshot>> | null> = [];
-    
+
     if (traceData) {
       // Extract DOM snapshot for each failure
       for (let i = 0; i < failureFacts.length; i++) {
-        const failureTime = traceData.metadata?.endTime || 
-                           (traceData.actions.length > 0 
-                             ? Math.max(...traceData.actions.map(a => a.timestamp))
-                             : Date.now());
+        const failureTime = traceData.metadata?.endTime ||
+          (traceData.actions.length > 0
+            ? Math.max(...traceData.actions.map(a => a.timestamp))
+            : Date.now());
         const domSnapshot = await extractDOMSnapshot(traceData, failureTime);
         domSnapshots.push(domSnapshot);
       }
@@ -91,9 +93,9 @@ export async function runAnalysis(artifacts: PlaywrightArtifacts) {
     for (let i = 0; i < failureFacts.length; i++) {
       const failureCategory = failureCategories[i];
       const domSnapshot = domSnapshots[i];
-      
+
       // Check if this is a selector-related failure
-      const isSelectorRelated = 
+      const isSelectorRelated =
         failureCategory.category === 'selector_not_found' ||
         (artifactSignals[i]?.uiState === 'element missing') ||
         failureFacts[i].failedStep.toLowerCase().includes('selector') ||
@@ -103,20 +105,20 @@ export async function runAnalysis(artifacts: PlaywrightArtifacts) {
       let failedAction: Awaited<ReturnType<typeof readTraceZip>>['actions'][0] | null = null;
       if (traceData) {
         console.log(`[Pipeline] Looking for failed action in trace. Total actions: ${traceData.actions.length}`);
-        
+
         // Find actions with errors, closest to failure time
-        const failureTime = traceData.metadata?.endTime || 
-                           (traceData.actions.length > 0 
-                             ? Math.max(...traceData.actions.map(a => a.timestamp))
-                             : Date.now());
-        
+        const failureTime = traceData.metadata?.endTime ||
+          (traceData.actions.length > 0
+            ? Math.max(...traceData.actions.map(a => a.timestamp))
+            : Date.now());
+
         // Find actions with errors, sorted by proximity to failure time
         const actionsWithErrors = traceData.actions
           .filter(a => a.error)
           .sort((a, b) => Math.abs(a.timestamp - failureTime) - Math.abs(b.timestamp - failureTime));
-        
+
         console.log(`[Pipeline] Found ${actionsWithErrors.length} actions with errors`);
-        
+
         if (actionsWithErrors.length > 0) {
           failedAction = actionsWithErrors[0];
           console.log('[Pipeline] Using failed action:', {
@@ -126,10 +128,10 @@ export async function runAnalysis(artifacts: PlaywrightArtifacts) {
           });
         } else {
           // If no actions with errors, try to find the last action (might be the one that failed)
-          const lastAction = traceData.actions.length > 0 
+          const lastAction = traceData.actions.length > 0
             ? traceData.actions[traceData.actions.length - 1]
             : null;
-          
+
           if (lastAction) {
             console.log('[Pipeline] No actions with errors found, using last action:', {
               actionName: lastAction.action?.name,
@@ -174,12 +176,39 @@ export async function runAnalysis(artifacts: PlaywrightArtifacts) {
     }
   }
 
+  // Phase 5.5: Solution Suggestion Agent
+  const solutionSuggestions: Array<SolutionSuggestion | null> = [];
+
+  if (failureFacts.length > 0 && diagnoses.length > 0) {
+    for (let i = 0; i < failureFacts.length; i++) {
+      const diagnosis = diagnoses[i];
+      
+      // Only suggest solutions if we have a diagnosis
+      if (diagnosis) {
+        const suggestion = await suggestSolution({
+          failureFacts: failureFacts[i],
+          failureCategory: failureCategories[i],
+          artifactSignals: artifactSignals[i],
+          selectorAnalysis: selectorAnalyses[i],
+          finalDiagnosis: diagnosis,
+        });
+        solutionSuggestions.push(suggestion);
+      } else {
+        solutionSuggestions.push(null);
+      }
+    }
+  } else {
+    // No failures or diagnoses, return null for each
+    solutionSuggestions.push(...failureFacts.map(() => null));
+  }
+
   return {
     failureFacts,
     failureCategories,
     artifactSignals,
     selectorAnalyses,
     diagnoses,
+    solutionSuggestions,
   };
 }
 

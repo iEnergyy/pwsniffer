@@ -102,3 +102,17 @@ export const SelectorAnalysisSchema = z.object({
 
 export type SelectorAnalysis = z.infer<typeof SelectorAnalysisSchema>;
 
+/**
+ * Output from Solution Suggestion Agent (for Phase 5.5)
+ */
+export const SolutionSuggestionSchema = z.object({
+  suggestedCode: z.string().nullable().describe('Suggested code fix (selector, test logic, etc.) or null if not applicable'),
+  originalCode: z.string().nullable().describe('Original code that failed, or null if not extractable'),
+  explanation: z.string().describe('Explanation of the suggested fix'),
+  steps: z.array(z.string()).describe('Step-by-step instructions for implementing the fix'),
+  alternativeApproaches: z.array(z.string()).optional().describe('Alternative approaches if the primary solution doesn\'t work'),
+  confidence: z.number().min(0).max(1).describe('Confidence in the solution (0-1)'),
+});
+
+export type SolutionSuggestion = z.infer<typeof SolutionSuggestionSchema>;
+

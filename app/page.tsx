@@ -15,7 +15,7 @@ import {
   LoaderIcon,
   PlayIcon,
 } from 'lucide-react';
-import type { TestFailureFacts, FailureCategory, ArtifactSignals, SelectorAnalysis, FinalDiagnosis } from '@/types/schemas';
+import type { TestFailureFacts, FailureCategory, ArtifactSignals, SelectorAnalysis, FinalDiagnosis, SolutionSuggestion } from '@/types/schemas';
 
 function formatFileSize(bytes: number): string {
   if (bytes === 0) return '0 Bytes';
@@ -170,6 +170,7 @@ export default function Page() {
   const [artifactSignals, setArtifactSignals] = useState<Array<ArtifactSignals | null> | null>(null);
   const [selectorAnalyses, setSelectorAnalyses] = useState<Array<SelectorAnalysis | null> | null>(null);
   const [diagnoses, setDiagnoses] = useState<Array<FinalDiagnosis | null> | null>(null);
+  const [solutionSuggestions, setSolutionSuggestions] = useState<Array<SolutionSuggestion | null> | null>(null);
   const [screenshotUrls, setScreenshotUrls] = useState<string[]>([]);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [traceSessionId, setTraceSessionId] = useState<string | null>(null);
@@ -250,6 +251,7 @@ export default function Page() {
     setArtifactSignals(null);
     setSelectorAnalyses(null);
     setDiagnoses(null);
+    setSolutionSuggestions(null);
     setScreenshotUrls([]);
 
     try {
@@ -309,6 +311,7 @@ export default function Page() {
       setArtifactSignals(data.results.artifactSignals || null);
       setSelectorAnalyses(data.results.selectorAnalyses || null);
       setDiagnoses(data.results.diagnoses || null);
+      setSolutionSuggestions(data.results.solutionSuggestions || null);
       
       // Update screenshot URLs from API response (for ZIP files)
       if (data.results.screenshotUrls && data.results.screenshotUrls.length > 0) {
@@ -740,6 +743,7 @@ export default function Page() {
                       const signals = artifactSignals?.[index];
                       const selectorAnalysis = selectorAnalyses?.[index];
                       const diagnosis = diagnoses?.[index];
+                      const solutionSuggestion = solutionSuggestions?.[index];
                       return (
                         <Card key={index}>
                           <CardHeader>
@@ -832,6 +836,108 @@ export default function Page() {
                                 </CardContent>
                               </Card>
                             )}
+
+                            {/* Solution Suggestion Section - After Diagnosis */}
+                            {solutionSuggestion && (
+                              <Card className="mb-4 bg-primary/5 border-primary/20">
+                                <CardHeader>
+                                  <CardTitle className="text-base">Suggested Solution</CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                  {solutionSuggestion.explanation && (
+                                    <div>
+                                      <span className="text-sm font-medium">Explanation: </span>
+                                      <p className="text-sm text-muted-foreground mt-1">
+                                        {solutionSuggestion.explanation}
+                                      </p>
+                                    </div>
+                                  )}
+
+                                  {/* Before/After Code Comparison */}
+                                  {(solutionSuggestion.originalCode || solutionSuggestion.suggestedCode) && (
+                                    <div className="space-y-3">
+                                      {solutionSuggestion.originalCode && (
+                                        <div>
+                                          <span className="text-sm font-medium">Original Code: </span>
+                                          <Card className="bg-muted mt-2">
+                                            <CardContent className="pt-4">
+                                              <div className="flex items-center justify-between mb-2">
+                                                <span className="text-xs text-muted-foreground">Before</span>
+                                              </div>
+                                              <pre className="text-xs overflow-auto max-h-32">
+                                                <code>{solutionSuggestion.originalCode}</code>
+                                              </pre>
+                                            </CardContent>
+                                          </Card>
+                                        </div>
+                                      )}
+
+                                      {solutionSuggestion.suggestedCode && (
+                                        <div>
+                                          <span className="text-sm font-medium">Suggested Code: </span>
+                                          <Card className="bg-muted mt-2">
+                                            <CardContent className="pt-4">
+                                              <div className="flex items-center justify-between mb-2">
+                                                <span className="text-xs text-muted-foreground">After</span>
+                                                <Button
+                                                  variant="outline"
+                                                  size="sm"
+                                                  onClick={() => {
+                                                    navigator.clipboard.writeText(solutionSuggestion.suggestedCode || '');
+                                                  }}
+                                                  className="h-6 text-xs"
+                                                >
+                                                  Copy Code
+                                                </Button>
+                                              </div>
+                                              <pre className="text-xs overflow-auto max-h-64">
+                                                <code>{solutionSuggestion.suggestedCode}</code>
+                                              </pre>
+                                            </CardContent>
+                                          </Card>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+
+                                  {/* Step-by-step Instructions */}
+                                  {solutionSuggestion.steps && solutionSuggestion.steps.length > 0 && (
+                                    <div>
+                                      <span className="text-sm font-semibold">Implementation Steps: </span>
+                                      <ol className="list-decimal list-inside mt-2 space-y-1">
+                                        {solutionSuggestion.steps.map((step, stepIndex) => (
+                                          <li key={stepIndex} className="text-sm text-muted-foreground">
+                                            {step}
+                                          </li>
+                                        ))}
+                                      </ol>
+                                    </div>
+                                  )}
+
+                                  {/* Alternative Approaches */}
+                                  {solutionSuggestion.alternativeApproaches && solutionSuggestion.alternativeApproaches.length > 0 && (
+                                    <div>
+                                      <span className="text-sm font-semibold">Alternative Approaches: </span>
+                                      <ul className="list-disc list-inside mt-2 space-y-1">
+                                        {solutionSuggestion.alternativeApproaches.map((approach, altIndex) => (
+                                          <li key={altIndex} className="text-sm text-muted-foreground">
+                                            {approach}
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    </div>
+                                  )}
+
+                                  {/* Confidence Score */}
+                                  <div>
+                                    <span className="text-xs text-muted-foreground">
+                                      Confidence: {(solutionSuggestion.confidence * 100).toFixed(0)}%
+                                    </span>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            )}
+
                             <div>
                               <span className="text-sm font-medium">File: </span>
                               <span className="text-sm">{failure.file}</span>

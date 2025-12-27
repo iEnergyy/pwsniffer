@@ -68,7 +68,7 @@ No other data sources are used.
 
 ## 🧠 Agent Architecture (Vercel AI SDK)
 
-The MVP is composed of **five specialized agents**, each with a single responsibility.
+The MVP is composed of **six specialized agents**, each with a single responsibility (five implemented, one planned for Phase 5.5).
 
 ### 1️⃣ Report Decomposition Agent (Entry Point)
 
@@ -212,6 +212,42 @@ Produce a clear, human-readable decision and next step.
 
 ---
 
+### 6️⃣ Solution Suggestion Agent (Phase 5.5)
+
+**Purpose**
+Generate actionable code fixes and solutions based on the diagnosis.
+
+**Inputs**
+
+- Final diagnosis
+- Failure facts
+- Selector analysis (if applicable)
+- Artifact signals
+
+**Outputs**
+
+- Code suggestions (updated selectors, test fixes)
+- Step-by-step fix instructions
+- Code snippets with context
+- Alternative approaches
+
+**Example Output**
+
+```json
+{
+  "suggestedCode": "page.getByRole('button', { name: 'Login' })",
+  "originalCode": "page.locator('#login-btn')",
+  "explanation": "Using semantic role-based selector for better stability",
+  "steps": [
+    "Replace the CSS selector with getByRole",
+    "Update the test to use the new selector",
+    "Verify the element is accessible"
+  ]
+}
+```
+
+---
+
 ## 🔁 Execution Flow
 
 ```text
@@ -228,6 +264,8 @@ Selector Heuristics Agent (conditional) ✅
 Trace Viewer Integration ✅ (Phase 4.5)
         ↓
 Action Synthesis Agent ✅
+        ↓
+Solution Suggestion Agent ⏳ (Phase 5.5)
 ```
 
 Agents are **conditionally executed** — not all agents run for every failure.
@@ -541,6 +579,49 @@ You copy the suggested selector at least once and it works.
 You follow the recommendation without second-guessing.
 
 **Status:** ✅ **COMPLETE**
+
+---
+
+### PHASE 5.5 — Solution Suggestion Agent (2–3 days)
+
+- [ ] **Goal:** Generate actionable code fixes and solutions based on diagnosis.
+
+**Build**
+
+- [ ] Agent: `SolutionSuggester`
+- [ ] Inputs:
+  - [ ] Final diagnosis (from Phase 5)
+  - [ ] Failure facts
+  - [ ] Selector analysis (if applicable)
+  - [ ] Artifact signals
+- [ ] Outputs:
+  - [ ] Code suggestions (updated selectors, test fixes, etc.)
+  - [ ] Step-by-step fix instructions
+  - [ ] Code snippets with context
+  - [ ] Alternative approaches
+
+**Capabilities**
+
+- Generate Playwright selector code fixes
+- Suggest test logic improvements
+- Provide timeout configuration recommendations
+- Offer environment setup guidance
+- Create code diffs or patches (optional)
+
+**Examples**
+
+- **Selector fix**: Convert fragile CSS selector to semantic Playwright locator
+- **Test fix**: Update assertion logic based on actual page state
+- **Timeout fix**: Suggest appropriate timeout values with reasoning
+- **Environment fix**: Provide configuration changes for auth/environment issues
+
+**Exit criteria ✅**
+
+- You can copy-paste the suggested code and it works
+- Solutions are contextual and specific to the failure
+- Multiple solution approaches are offered when applicable
+
+**Status:** ⏳ **PENDING**
 
 ---
 
